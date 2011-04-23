@@ -1,0 +1,5 @@
+Hot Tub is an intelligent erlang process pool.
+
+Given 6 parameters it creates a supervised pool of worker processes
+and maintains a minimum/maximum number of workers, potentially allowing
+workers to be reused.
