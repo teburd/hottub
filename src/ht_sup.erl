@@ -18,9 +18,13 @@
 %% ----------------------------------------------------------------------------
 
 %% @doc Start corbel system.
--spec start_link() -> {ok, Sup::pid()}.
-start_link() ->
-    supervisor:start_link({local, ?MODULE}, ?MODULE, []).
+-spec start_link(Name::term(), Min::pos_integer(), Max::pos_integer(), Module::module(),
+    Function::function(), Arguments::list()) -> {ok, Sup::pid()}.
+start_link(Name, Min, Max, Module, Function, Arguments) ->
+    {ok, Sup} = supervisor:start_link({local, ?MODULE}, ?MODULE, []),
+    {ok, WorkSup} = start_worker_sup(Sup, Name, Module, Function Arguments),
+    {ok, Pool} = start_pool(Sup, WorkSup, Name, Min, Max),
+    {ok, Sup}.
 
 
 %% ----------------------------------------------------------------------------
