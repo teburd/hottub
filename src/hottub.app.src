@@ -1,0 +1,12 @@
+{application, hottub,
+ [
+  {description, ""},
+  {vsn, "1"},
+  {registered, []},
+  {applications, [
+                  kernel,
+                  stdlib
+                 ]},
+  {mod, { hottub_app, []}},
+  {env, []}
+ ]}.
