@@ -7,7 +7,7 @@
 -behaviour(supervisor).
 
 %% api
--export([start_link/0]).
+-export([start_link/5]).
 
 %% supervisor callbacks
 -export([init/1]).
@@ -17,12 +17,12 @@
 %% api
 %% ----------------------------------------------------------------------------
 
-%% @doc Start corbel system.
--spec start_link(Name::term(), Min::pos_integer(), Max::pos_integer(), Module::module(),
+%% @doc Start linked hot tub supervisor.
+-spec start_link(Name::atom(), Limit::pos_integer(), Module::module(),
     Function::function(), Arguments::list()) -> {ok, Sup::pid()}.
-start_link(Name, Min, Max, Module, Function, Arguments) ->
-    {ok, Sup} = supervisor:start_link({local, ?MODULE}, ?MODULE, []),
-    {ok, WorkSup} = start_worker_sup(Sup, Name, Module, Function Arguments),
+start_link(Name, Limit, Module, Function, Arguments) ->
+    {ok, Sup} = supervisor:start_link({local, Name}, ?MODULE, []),
+    {ok, WorkSup} = start_worker_sup(Sup, Name, Module, Function, Arguments),
     {ok, Pool} = start_pool(Sup, WorkSup, Name, Min, Max),
     {ok, Sup}.
 
