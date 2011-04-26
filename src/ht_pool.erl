@@ -34,9 +34,11 @@ with_worker(Name, Fun) ->
         checkin_worker(Name, Worker)
     end.
 
+
 %% ------------------------------------------------------------------
 %% private api 
 %% ------------------------------------------------------------------
+
 checkout_worker(Name) ->
     gen_server:call(Name, {checkout}).
 
@@ -49,19 +51,22 @@ unused_worker(Key, Value, undefined) ->
 unused_worker(_Key, Value, {OKey, OValue}) when OValue < Value ->
     {OKey, OValue}.
 
+
 %% ------------------------------------------------------------------
 %% gen_server callbacks
 %% ------------------------------------------------------------------
 
-
+%% @private
 init([]) ->
     {ok, #state{}}.
 
+%% @private
 handle_call({checkout}, _From, State) ->
     {Worker, _Checkouts} = dict:fold(fun unused_worker/3, State#state.workers),
     Workers = dict:update_counter(Worker, 1, State#state.workers),
     {reply, Worker, State#state{workers=Workers}}.
 
+%% @private
 handle_cast({checkin, Worker}, State) ->
     case dict:is_key(Worker) of
         true ->
@@ -71,11 +76,14 @@ handle_cast({checkin, Worker}, State) ->
             {noreply, State}
     end.
 
+%% @private
 handle_info(_Info, State) ->
     {noreply, State}.
 
+%% @private
 terminate(_Reason, _State) ->
     ok.
 
+%% @private
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
