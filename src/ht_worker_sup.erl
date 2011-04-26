@@ -6,8 +6,6 @@
 
 -behaviour(supervisor).
 
--export([start_link/4]).
-
 %% api
 -export([start_link/4]).
 
