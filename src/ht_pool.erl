@@ -7,31 +7,63 @@
 -behaviour(gen_server).
 
 %% api
--export([start_link/2, with_worker/2]).
+-export([start_link/2, with_worker/2, call/2, cast/2]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
--record(state, {workers=dict:new()}).
+-record(state, {poolname=undefined, workers=dict:new()}).
 
+
+-ifndef(TIMEON).
+%% Yes, these need to be on a single line to work...
+-define(TIMEON, erlang:put(debug_timer, [now()|case erlang:get(debug_timer) == undefined of true -> []; false -> erlang:get(debug_timer) end])).
+-define(TIMEOFF(Var), io:format("~s :: ~10.2f ms : ~p~n", [string:copies(" ", length(erlang:get(debug_timer))), (timer:now_diff(now(), hd(erlang:get(debug_timer)))/1000), Var]), erlang:put(debug_timer, tl(erlang:get(debug_timer)))).
+-endif.
 
 %% ----------------------------------------------------------------------------
 %% api
 %% ----------------------------------------------------------------------------
 
 %% @doc Start a linked pool manager.
--spec start_link(Name::atom(), Limit::pos_integer()) -> {ok, pid()}.
-start_link(Name, Limit) ->
-    gen_server:start_link({local, Name}, [Limit], []).
+-spec start_link(PoolName::atom(), Limit::pos_integer()) -> {ok, pid()}.
+start_link(PoolName, Limit) ->
+    gen_server:start_link({local, PoolName}, ?MODULE, [PoolName, Limit], []).
 
 %% @doc Perform a function with a worker process.
--spec with_worker(Name::atom(), Fun::fun()) -> any().
-with_worker(Name, Fun) ->
-    {ok, Worker} = checkout_worker(Name),
+-spec with_worker(PoolName::atom(), Fun::fun()) -> any().
+with_worker(PoolName, Fun) ->
+    ?TIMEON,
+    {ok, Worker} = checkout_worker(PoolName),
+    ?TIMEOFF(checkout_worker),
     try
         Fun(Worker)
     after
-        checkin_worker(Name, Worker)
+        checkin_worker(PoolName, Worker)
+    end.
+
+%% @doc Perform a gen_server:call with a worker process.
+-spec call(PoolName::atom(), Args::any()) -> Result::any().
+call(PoolName, Args) ->
+    ?TIMEON,
+    {ok, Worker} = checkout_worker(PoolName),
+    ?TIMEOFF(checkout_worker),
+    try
+        gen_server:call(Worker, Args)
+    after
+        checkin_worker(PoolName, Worker)
+    end.
+
+%% @doc Perform a gen_server:call with a worker process.
+-spec cast(PoolName::atom(), Args::any()) -> Result::any().
+cast(PoolName, Args) ->
+    ?TIMEON,
+    {ok, Worker} = checkout_worker(PoolName),
+    ?TIMEOFF(checkout_worker),
+    try
+        gen_server:cast(Worker, Args)
+    after
+        checkin_worker(PoolName, Worker)
     end.
 
 
@@ -39,36 +71,51 @@ with_worker(Name, Fun) ->
 %% private api 
 %% ------------------------------------------------------------------
 
-checkout_worker(Name) ->
-    gen_server:call(Name, {checkout}).
+checkout_worker(PoolName) ->
+    gen_server:call(PoolName, {checkout}).
 
-checkin_worker(Name, Worker) ->
-    gen_server:cast(Name, {checkin, Worker}).
+checkin_worker(PoolName, Worker) ->
+    gen_server:cast(PoolName, {checkin, Worker}).
+
+%% @doc Start a worker and return the tuple {Worker, 0}
+start_worker(PoolName) ->
+    {ok, Worker} = ht_worker_sup:start_worker(PoolName),
+    monitor(process, Worker),
+    {Worker, 0}.
 
 %% @doc Find the least used worker in the pool.
 unused_worker(Key, Value, undefined) ->
     {Key, Value};
 unused_worker(_Key, Value, {OKey, OValue}) when OValue < Value ->
-    {OKey, OValue}.
-
+    {OKey, OValue};
+unused_worker(Key, Value, {_OKey, _OValue}) ->
+    {Key, Value}.
 
 %% ------------------------------------------------------------------
 %% gen_server callbacks
 %% ------------------------------------------------------------------
 
 %% @private
-init([]) ->
-    {ok, #state{}}.
+init([PoolName, Limit]) ->
+    io:format("starting workers~n"),
+    Workers =
+        lists:map(
+            fun(_) ->
+                start_worker(PoolName)
+            end,
+            lists:seq(0, Limit)),
+    io:format("started workers~n"),
+    {ok, #state{poolname=PoolName, workers=dict:from_list(Workers)}}.
 
 %% @private
 handle_call({checkout}, _From, State) ->
-    {Worker, _Checkouts} = dict:fold(fun unused_worker/3, State#state.workers),
+    {Worker, _Checkouts} = dict:fold(fun unused_worker/3, undefined, State#state.workers),
     Workers = dict:update_counter(Worker, 1, State#state.workers),
-    {reply, Worker, State#state{workers=Workers}}.
+    {reply, {ok, Worker}, State#state{workers=Workers}}.
 
 %% @private
 handle_cast({checkin, Worker}, State) ->
-    case dict:is_key(Worker) of
+    case dict:is_key(Worker, State#state.workers) of
         true ->
             Workers = dict:update_counter(Worker, -1, State#state.workers),
             {noreply, State#state{workers=Workers}};
@@ -77,8 +124,11 @@ handle_cast({checkin, Worker}, State) ->
     end.
 
 %% @private
-handle_info(_Info, State) ->
-    {noreply, State}.
+handle_info({'DOWN', _, _, Pid, _}, State) ->
+    Workers0 = dict:erase(Pid, State#state.workers),
+    {Worker, Count} = start_worker(State#state.poolname),
+    Workers1 = dict:store(Worker, Count, Workers0),
+    {noreply, State#state{workers=Workers1}}.
 
 %% @private
 terminate(_Reason, _State) ->

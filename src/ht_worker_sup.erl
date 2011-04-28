@@ -7,7 +7,7 @@
 -behaviour(supervisor).
 
 %% api
--export([start_link/4]).
+-export([start_link/4, start_worker/1]).
 
 %% supervisor callbacks
 -export([init/1]).
@@ -18,11 +18,26 @@
 %% ----------------------------------------------------------------------------
 
 %% @doc Start linked hot tub worker supervisor.
--spec start_link(Name::atom(), Module::module(),
+-spec start_link(PoolName::atom(), Module::module(),
     Function::function(), Arguments::list()) -> {ok, Sup::pid()}.
-start_link(Name, Module, Function, Arguments) ->
-    Name1 = list_to_atom(atom_to_list(Name) ++ "_worker_sup"),
-    supervisor:start_link({local, Name1}, ?MODULE, [Name, Module, Function, Arguments]).
+start_link(PoolName, Module, Function, Arguments) ->
+    supervisor:start_link({local, sup_name(PoolName)}, ?MODULE, [PoolName, Module, Function, Arguments]).
+
+%% @doc Start a worker.
+-spec start_worker(PoolName::atom()) -> {ok, Worker::pid()}.
+start_worker(PoolName) ->
+    io:format("starting worker ~n"),
+    Worker = supervisor:start_child(sup_name(PoolName), []),
+    io:format("worker is ~p~n", [Worker]),
+    Worker.
+
+
+%% ----------------------------------------------------------------------------
+%% private api
+%% ----------------------------------------------------------------------------
+
+sup_name(PoolName) ->
+    list_to_atom(atom_to_list(PoolName) ++ "_worker_sup").
 
 
 %% ----------------------------------------------------------------------------
@@ -30,8 +45,8 @@ start_link(Name, Module, Function, Arguments) ->
 %% ----------------------------------------------------------------------------
 
 %% @private
-init([Name, M, F, A]) ->
-    Name1 = list_to_atom(atom_to_list(Name) + "_worker"),
-    ChildSpec = {Name1, {M, F, A},
+init([PoolName, M, F, A]) ->
+    Name = atom_to_list(PoolName) ++ "_worker",
+    ChildSpec = {Name, {M, F, A},
         temporary, 2000, worker, [M]},
-    {ok, {{simple_one_for_one, 5, 10}, [ChildSpec]}}.
+    {ok, {{simple_one_for_one, 1, 1}, [ChildSpec]}}.
