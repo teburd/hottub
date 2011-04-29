@@ -26,10 +26,7 @@ start_link(PoolName, Module, Function, Arguments) ->
 %% @doc Start a worker.
 -spec start_worker(PoolName::atom()) -> {ok, Worker::pid()}.
 start_worker(PoolName) ->
-    io:format("starting worker ~n"),
-    Worker = supervisor:start_child(sup_name(PoolName), []),
-    io:format("worker is ~p~n", [Worker]),
-    Worker.
+    supervisor:start_child(sup_name(PoolName), []).
 
 
 %% ----------------------------------------------------------------------------

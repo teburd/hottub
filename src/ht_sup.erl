@@ -23,11 +23,8 @@
 start_link(PoolName, Limit, Module, Function, Arguments) ->
     Name = list_to_atom(atom_to_list(PoolName) ++ "_sup"),
     {ok, Sup} = supervisor:start_link({local, Name}, ?MODULE, []),
-    io:format("starting worker sup~n"),
     {ok, _WorkSup} = start_worker_sup(Sup, PoolName, Module, Function, Arguments),
-    io:format("starting pool~n"),
     {ok, _Pool} = start_pool(Sup, PoolName, Limit),
-    io:format("pool started~n"),
     {ok, Sup}.
 
 

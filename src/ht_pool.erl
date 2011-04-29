@@ -15,12 +15,6 @@
 -record(state, {poolname=undefined, workers=dict:new()}).
 
 
--ifndef(TIMEON).
-%% Yes, these need to be on a single line to work...
--define(TIMEON, erlang:put(debug_timer, [now()|case erlang:get(debug_timer) == undefined of true -> []; false -> erlang:get(debug_timer) end])).
--define(TIMEOFF(Var), io:format("~s :: ~10.2f ms : ~p~n", [string:copies(" ", length(erlang:get(debug_timer))), (timer:now_diff(now(), hd(erlang:get(debug_timer)))/1000), Var]), erlang:put(debug_timer, tl(erlang:get(debug_timer)))).
--endif.
-
 %% ----------------------------------------------------------------------------
 %% api
 %% ----------------------------------------------------------------------------
@@ -33,9 +27,7 @@ start_link(PoolName, Limit) ->
 %% @doc Perform a function with a worker process.
 -spec with_worker(PoolName::atom(), Fun::fun()) -> any().
 with_worker(PoolName, Fun) ->
-    ?TIMEON,
     {ok, Worker} = checkout_worker(PoolName),
-    ?TIMEOFF(checkout_worker),
     try
         Fun(Worker)
     after
@@ -45,9 +37,7 @@ with_worker(PoolName, Fun) ->
 %% @doc Perform a gen_server:call with a worker process.
 -spec call(PoolName::atom(), Args::any()) -> Result::any().
 call(PoolName, Args) ->
-    ?TIMEON,
     {ok, Worker} = checkout_worker(PoolName),
-    ?TIMEOFF(checkout_worker),
     try
         gen_server:call(Worker, Args)
     after
@@ -57,9 +47,7 @@ call(PoolName, Args) ->
 %% @doc Perform a gen_server:call with a worker process.
 -spec cast(PoolName::atom(), Args::any()) -> Result::any().
 cast(PoolName, Args) ->
-    ?TIMEON,
     {ok, Worker} = checkout_worker(PoolName),
-    ?TIMEOFF(checkout_worker),
     try
         gen_server:cast(Worker, Args)
     after
@@ -97,14 +85,12 @@ unused_worker(Key, Value, {_OKey, _OValue}) ->
 
 %% @private
 init([PoolName, Limit]) ->
-    io:format("starting workers~n"),
     Workers =
         lists:map(
             fun(_) ->
                 start_worker(PoolName)
             end,
             lists:seq(0, Limit)),
-    io:format("started workers~n"),
     {ok, #state{poolname=PoolName, workers=dict:from_list(Workers)}}.
 
 %% @private
