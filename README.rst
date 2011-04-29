@@ -1,5 +1,5 @@
-Hot Tub
--------
+About
+-----
 
 Hot Tub is a permanent erlang worker pool. It keeps some number of worker
 processes alive at all times and then attempts to load balance requests across
@@ -8,14 +8,15 @@ the set of workers by picking the one with the fewest current users.
 Primarily I use this as a database worker pool though it certainly could have
 other uses.
 
-
-Example Usage
-=============
+Example
+-------
 
 
 demo_worker.erl
++++++++++++++++
 
-.. code-block:: erlang
+::
+
     -module(demo_worker.erl).
 
     -export([start_link/0]).
@@ -47,8 +48,10 @@ demo_worker.erl
 
 
 From the Shell
+++++++++++++++
 
-.. code-block:: erlang
+::
+
     hottub:start(demo, 5, demo_worker, start_link, []).
     hottub:call(demo, {add, 5, 5}).
     hottub:cast(demo, {print, "what up from a pool"}).
