@@ -7,7 +7,7 @@
 -behaviour(supervisor).
 
 %% api
--export([start_link/5]).
+-export([start_link/5, stop/1]).
 
 %% supervisor callbacks
 -export([init/1]).
@@ -21,16 +21,26 @@
 -spec start_link(PoolName::atom(), Limit::pos_integer(), Module::module(),
     Function::function(), Arguments::list()) -> {ok, Sup::pid()}.
 start_link(PoolName, Limit, Module, Function, Arguments) ->
-    Name = list_to_atom(atom_to_list(PoolName) ++ "_sup"),
+    Name = sup_name(PoolName),
     {ok, Sup} = supervisor:start_link({local, Name}, ?MODULE, []),
     {ok, _WorkSup} = start_worker_sup(Sup, PoolName, Module, Function, Arguments),
     {ok, _Pool} = start_pool(Sup, PoolName, Limit),
     {ok, Sup}.
 
+%% @doc Stop a linked hot tub supervisor.
+-spec stop(PoolName::atom()) -> ok.
+stop(PoolName) ->
+    Name = sup_name(PoolName),
+    true = exit(whereis(Name), normal),
+    ok.
+
 
 %% ----------------------------------------------------------------------------
 %% private api
 %% ----------------------------------------------------------------------------
+
+sup_name(PoolName) ->
+    list_to_atom(atom_to_list(PoolName) ++ "_sup").
 
 start_worker_sup(Sup, PoolName, Module, Function, Arguments) ->
     Name = atom_to_list(PoolName) ++ "_worker_sup",
