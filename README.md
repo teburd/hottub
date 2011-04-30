@@ -16,7 +16,6 @@ Example Usage
 -------------
 
 demo_worker.erl
-+++++++++++++++
 
 ``` erlang
 -module(demo_worker).
@@ -50,7 +49,6 @@ code_change(_OldVsn, State, _Extra) ->
 ```
 
 erl shell
-+++++++++
 
 ``` erlang
 hottub:start(demo, 5, demo_worker, start_link, []).
