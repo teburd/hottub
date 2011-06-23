@@ -18,11 +18,22 @@ distclean: clean
 docs:
 	@./rebar skip_deps=true docs
 
-build_plt:
-	@./rebar skip_deps=true build-plt
+APPS = kernel stdlib sasl erts ssl tools os_mon runtime_tools crypto inets \
+	   	xmerl webtool snmp public_key mnesia eunit syntax_tools compiler
+COMBO_PLT = $(HOME)/.corbel_dialyzer_plt
 
-dialyze:
-	@./rebar skip_deps=true dialyze
+build_plt:
+	dialyzer --build_plt --output_plt $(COMBO_PLT) --apps $(APPS) deps/*/ebin apps/*/ebin ebin
+
+dialyzer:
+	@echo
+	@echo Use "'make build_plt'" to build PLT prior to using this target.
+	@echo
+	@sleep 1
+	dialyzer -Wno_return --plt $(COMBO_PLT) apps/*/ebin deps/*/ebin ebin
+
+typer:
+	typer --plt $(COMBO_PLT) -r apps -I deps -I apps
 
 eunit:
 	rm -f .eunit/*.dat

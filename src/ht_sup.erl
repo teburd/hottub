@@ -18,41 +18,21 @@
 %% ----------------------------------------------------------------------------
 
 %% @doc Start linked hot tub supervisor.
--spec start_link(PoolName::atom(), Limit::pos_integer(), Module::module(),
+-spec start_link(PoolName::string(), Limit::pos_integer(), Module::module(),
     Function::function(), Arguments::list()) -> {ok, Sup::pid()}.
 start_link(PoolName, Limit, Module, Function, Arguments) ->
-    Name = sup_name(PoolName),
-    {ok, Sup} = supervisor:start_link({local, Name}, ?MODULE, []),
-    {ok, _WorkSup} = start_worker_sup(Sup, PoolName, Module, Function, Arguments),
-    {ok, _Pool} = start_pool(Sup, PoolName, Limit),
-    {ok, Sup}.
-
-%% @doc Stop a linked hot tub supervisor.
--spec stop(PoolName::atom()) -> ok.
-stop(PoolName) ->
-    Name = sup_name(PoolName),
-    true = exit(whereis(Name), normal),
-    ok.
+    supervisor:start_link(?MODULE, [PoolName, Limit, Module, Function, Arguments]).
 
 
 %% ----------------------------------------------------------------------------
 %% private api
 %% ----------------------------------------------------------------------------
 
-sup_name(PoolName) ->
-    list_to_atom(atom_to_list(PoolName) ++ "_sup").
+worker_sup_name(PoolName) -> 
+    PoolName ++ "_worker_sup".
 
-start_worker_sup(Sup, PoolName, Module, Function, Arguments) ->
-    Name = atom_to_list(PoolName) ++ "_worker_sup",
-    Spec = {Name, {ht_worker_sup, start_link, [PoolName, Module, Function, Arguments]},
-            permanent, 2000, supervisor, [ht_worker_sup]},
-    supervisor:start_child(Sup, Spec).
-
-start_pool(Sup, PoolName, Limit) ->
-    Name = atom_to_list(PoolName) ++ "_pool",
-    Spec = {Name, {ht_pool, start_link, [PoolName, Limit]},
-            permanent, 2000, worker, [ht_pool]},
-    supervisor:start_child(Sup, Spec).
+pool_name(PoolName) ->
+    PoolName ++ "_pool".
 
 
 %% ----------------------------------------------------------------------------
@@ -60,6 +40,12 @@ start_pool(Sup, PoolName, Limit) ->
 %% ----------------------------------------------------------------------------
 
 %% @private
-init([]) ->
-    {ok, { {one_for_one, 5, 10}, []} }.
-
+init([PoolName, Limit, Module, Function, Arguments]) ->
+    WorkerSupSpec = {worker_sup_name(PoolName),
+        {ht_worker_sup, start_link, [PoolName, Limit, Module, Function,
+                Arguments]},
+        permanent, 2000, supervisor, [ht_worker_sup]},
+    PoolSpec = {pool_name(PoolName),
+        {ht_pool, start_link, [PoolName, Limit]},
+        permanent, 2000, worker, [ht_pool]},
+    {ok, {{one_for_one, 5, 10}, [PoolSpec, WorkerSupSpec]}}.

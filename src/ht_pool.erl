@@ -1,18 +1,23 @@
 %% @author Tom Burdick <thomas.burdick@gmail.com>
 %% @copyright 2011 Tom Burdick
-%% @doc Hot Tub Pool Balancer.
+%% @doc Hot Tub Pool Balancer. Attempts to always use what it believes is an
+%% idle worker if possible. If not it resorts to round robin distribution.
+%% @end
 
 -module(ht_pool).
 
--behaviour(gen_server).
+-behaviour(gen_fsm).
 
 %% api
--export([start_link/2, with_worker/2, call/2, cast/2]).
+-export([start_link/1, with_worker/2, call/2, cast/2]).
+
+%% worker callback
+-export([worker_started/3]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
--record(state, {poolname=undefined, workers=dict:new()}).
+-record(state, {poolname=undefined, idle=[], busy=[]}).
 
 
 %% ----------------------------------------------------------------------------
@@ -20,9 +25,9 @@
 %% ----------------------------------------------------------------------------
 
 %% @doc Start a linked pool manager.
--spec start_link(PoolName::atom(), Limit::pos_integer()) -> {ok, pid()}.
-start_link(PoolName, Limit) ->
-    gen_server:start_link({local, PoolName}, ?MODULE, [PoolName, Limit], []).
+-spec start_link(PoolName::atom()) -> {ok, pid()}.
+start_link(PoolName) ->
+    gen_server:start_link({local, PoolName}, ?MODULE, [PoolName], []).
 
 %% @doc Perform a function with a worker process.
 -spec with_worker(PoolName::atom(), Fun::fun()) -> any().
@@ -54,6 +59,11 @@ cast(PoolName, Args) ->
         checkin_worker(PoolName, Worker)
     end.
 
+%% @private
+%% @doc Called by ht_worker after the worker process has started.
+-spec worker_started(PoolName::atom(), Worker::pos_integer(), Pid::pid()) -> term().
+worker_started(PoolName, Worker, Pid) ->
+    gen_server:cast(PoolName, {worker_started, Worker, Pid}).
 
 %% ------------------------------------------------------------------
 %% private api 
@@ -64,12 +74,6 @@ checkout_worker(PoolName) ->
 
 checkin_worker(PoolName, Worker) ->
     gen_server:cast(PoolName, {checkin, Worker}).
-
-%% @doc Start a worker and return the tuple {Worker, 0}
-start_worker(PoolName) ->
-    {ok, Worker} = ht_worker_sup:start_worker(PoolName),
-    monitor(process, Worker),
-    {Worker, 0}.
 
 %% @doc Find the least used worker in the pool.
 unused_worker(Key, Value, undefined) ->
@@ -84,20 +88,19 @@ unused_worker(Key, Value, {_OKey, _OValue}) ->
 %% ------------------------------------------------------------------
 
 %% @private
-init([PoolName, Limit]) ->
-    Workers =
-        lists:map(
-            fun(_) ->
-                start_worker(PoolName)
-            end,
-            lists:seq(0, Limit)),
-    {ok, #state{poolname=PoolName, workers=dict:from_list(Workers)}}.
+init([PoolName]) ->
+    {ok, #state{poolname=PoolName}}.
 
 %% @private
 handle_call({checkout}, _From, State) ->
     {Worker, _Checkouts} = dict:fold(fun unused_worker/3, undefined, State#state.workers),
     Workers = dict:update_counter(Worker, 1, State#state.workers),
     {reply, {ok, Worker}, State#state{workers=Workers}}.
+
+%% @private
+handle_Cast({worker_started, _Worker, Pid}, State) ->
+    dict:
+    
 
 %% @private
 handle_cast({checkin, Worker}, State) ->
@@ -111,10 +114,8 @@ handle_cast({checkin, Worker}, State) ->
 
 %% @private
 handle_info({'DOWN', _, _, Pid, _}, State) ->
-    Workers0 = dict:erase(Pid, State#state.workers),
-    {Worker, Count} = start_worker(State#state.poolname),
-    Workers1 = dict:store(Worker, Count, Workers0),
-    {noreply, State#state{workers=Workers1}}.
+    Workers = dict:erase(Pid, State#state.workers),
+    {noreply, State#state{workers=Workers}}.
 
 %% @private
 terminate(_Reason, _State) ->
