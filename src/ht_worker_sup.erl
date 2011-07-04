@@ -32,7 +32,7 @@ sup_name(PoolName) ->
     list_to_atom(atom_to_list(PoolName) ++ "_worker_sup").
 
 worker_name(PoolName, Id) ->
-    lists:flatten([PoolName | ["_worker_" | io_lib:format("~p", [Id])]]).
+    lists:flatten([atom_to_list(PoolName) | ["_worker_" | io_lib:format("~p", [Id])]]).
 
 
 %% ----------------------------------------------------------------------------
