@@ -29,10 +29,10 @@ start_link(PoolName, Limit, Module, Function, Arguments) ->
 %% ----------------------------------------------------------------------------
 
 worker_sup_name(PoolName) -> 
-    PoolName ++ "_worker_sup".
+    atom_to_list(PoolName) ++ "_worker_sup".
 
 pool_name(PoolName) ->
-    PoolName ++ "_pool".
+    atom_to_list(PoolName) ++ "_pool".
 
 
 %% ----------------------------------------------------------------------------
