@@ -7,6 +7,4 @@ pool_test() ->
     ?debugHere,
     ?assertEqual(true, is_pid(hottub:worker(test_pool))),
     ?debugHere,
-    hottub:stop(test_pool),
-    ?debugHere,
     ok.

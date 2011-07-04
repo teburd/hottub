@@ -5,7 +5,7 @@
 -module(hottub).
 
 %% api
--export([start/5, stop/1, worker/1, call/2, cast/2]).
+-export([start/5, worker/1, call/2, cast/2]).
 
 
 %% ----------------------------------------------------------------------------
@@ -17,25 +17,21 @@
 start(PoolName, Limit, Module, Function, Args) ->
     ht_sup:start_link(PoolName, Limit, Module, Function, Args).
 
-%% @doc Stop a hot tub worker pool.
--spec stop(PoolName::atom()) -> ok.
-stop(PoolName) ->
-    ht_sup:stop(PoolName).
-
 %% @doc Get a worker Pid.
 -spec worker(PoolName::atom()) -> Worker::pid() | undefined.
 worker(PoolName) ->
     Worker = ets:foldl(
         fun 
+            ({Pid, _, N}, undefined) -> {Pid, N};
             ({Pid, _, N}, {_OPid, A}) when N > A -> {Pid, N};
             ({_, _, _}, {OPid, A}) -> {OPid, A}
-        end, 0, PoolName),
+        end, undefined, PoolName),
     case Worker of
+        undefined ->
+           undefined;
         {Pid, _N} ->
-            ht_pool:using_worker(PoolName, Pid),
-            Pid;
-        0 ->
-            undefined
+           ht_pool:using_worker(PoolName, Pid),
+           Pid 
     end.
 
 %% @doc Perform a gen_server:call with a worker process.
