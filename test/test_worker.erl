@@ -12,7 +12,7 @@
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
--record(state, {}).
+-record(state, {count=0}).
 
 
 %% ----------------------------------------------------------------------------
@@ -23,6 +23,16 @@
 -spec start_link() -> {ok, pid()}.
 start_link() ->
     gen_server:start_link(?MODULE, [], []).
+
+%% @doc Increment counter.
+-spec increment(Pid::pid()) -> any().
+increment(Pid) ->
+    gen_server:cast(Pid, {increment}).
+
+%% @doc Return counter.
+-spec count(Pid::pid()) -> any().
+count(Pid) ->
+    gen_server:call(Pid, {count}).
 
 %% @doc Crash a test worker.
 -spec crash(Pid::pid()) -> any().
@@ -45,10 +55,16 @@ init([]) ->
     {ok, #state{}}.
 
 %% @private
+handle_call({count}, _From, State) ->
+    {reply, State#state.count, State};
 handle_call(_Request, _From, State) ->
     {reply, ok, State}.
 
 %% @private
+handle_cast({increment}, State) ->
+    io:format(user, "incrementing count~n", []),
+    C = State#state.count + 1,
+    {noreply, State#state{count=C}};
 handle_cast({crash}, State) ->
     io:format(user, "crashing test worker~n", []),
     {stop, crash, State};
