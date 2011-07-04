@@ -20,8 +20,8 @@
 %% @doc Start linked hot tub worker supervisor.
 -spec start_link(PoolName::atom(), Limit::pos_integer(), Module::module(),
     Function::function(), Arguments::list()) -> {ok, Sup::pid()}.
-start_link(PoolName, Module, Function, Arguments) ->
-    supervisor:start_link({local, sup_name(PoolName)}, ?MODULE, [PoolName, Module, Function, Arguments]).
+start_link(PoolName, Limit, Module, Function, Arguments) ->
+    supervisor:start_link({local, sup_name(PoolName)}, ?MODULE, [PoolName, Limit, Module, Function, Arguments]).
 
 
 %% ----------------------------------------------------------------------------
@@ -44,7 +44,7 @@ init([PoolName, Limit, M, F, A]) ->
     ChildSpecs = lists:map(
         fun (Id) ->
             {worker_name(PoolName, Id),
-                {ht_worker, start_worker, [PoolName, Id, {M, F, A}]},
+                {ht_worker, start_worker, [PoolName, {M, F, A}]},
                 permanent, 2000, worker, [ht_worker, M]}
         end, lists:seq(0, Limit-1)),
     {ok, {{one_for_one, 10, 60}, ChildSpecs}}.

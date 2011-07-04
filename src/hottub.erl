@@ -5,7 +5,7 @@
 -module(hottub).
 
 %% api
--export([start/5, stop/1, with_worker/2, call/2, cast/2]).
+-export([start/5, stop/1, worker/1, call/2, cast/2]).
 
 
 %% ----------------------------------------------------------------------------
@@ -22,18 +22,29 @@ start(PoolName, Limit, Module, Function, Args) ->
 stop(PoolName) ->
     ht_sup:stop(PoolName).
 
-%% @doc Perform a function with a worker process.
--spec with_worker(PoolName::atom(), Fun::fun()) -> any().
-with_worker(PoolName, Fun) ->
-    ht_pool:with_worker(PoolName, Fun).
+%% @doc Get a worker Pid.
+-spec worker(PoolName::atom()) -> Worker::pid() | undefined.
+worker(PoolName) ->
+    Worker = ets:foldl(
+        fun 
+            ({Pid, _, N}, {_OPid, A}) when N > A -> {Pid, N};
+            ({_, _, _}, {OPid, A}) -> {OPid, A}
+        end, 0, PoolName),
+    case Worker of
+        {Pid, _N} ->
+            ht_pool:using_worker(PoolName, Pid),
+            Pid;
+        0 ->
+            undefined
+    end.
 
 %% @doc Perform a gen_server:call with a worker process.
 -spec call(PoolName::atom(), Args::any()) -> Result::any().
 call(PoolName, Args) ->
-    ht_pool:call(PoolName, Args).
+    gen_server:call(worker(PoolName), Args).
 
 %% @doc Perform a gen_server:call with a worker process.
 -spec cast(PoolName::atom(), Args::any()) -> Result::any().
 cast(PoolName, Args) ->
-    ht_pool:cast(PoolName, Args).
+    gen_server:cast(worker(PoolName), Args).
 
