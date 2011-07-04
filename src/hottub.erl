@@ -23,7 +23,7 @@ worker(PoolName) ->
     Worker = ets:foldl(
         fun 
             ({Pid, _, N}, undefined) -> {Pid, N};
-            ({Pid, _, N}, {_OPid, A}) when N > A -> {Pid, N};
+            ({Pid, _, N}, {_OPid, A}) when N < A -> {Pid, N};
             ({_, _, _}, {OPid, A}) -> {OPid, A}
         end, undefined, PoolName),
     case Worker of
