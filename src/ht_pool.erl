@@ -9,7 +9,7 @@
 -behaviour(gen_server).
 
 %% api
--export([start_link/1, add_worker/2]).
+-export([start_link/1, add_worker/2, using_worker/2]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -42,7 +42,9 @@ using_worker(PoolName, Pid) ->
 
 %% @private
 init([PoolName]) ->
+    io:format(user, "starting ets table for pool~n", []),
     _PidTable = ets:new(PoolName, [set, protected, named_table, {read_concurrency, true}]),
+    io:format(user, "started ets table for pool~n", []),
     {ok, #state{poolname=PoolName}}.
 
 %% @private
@@ -51,16 +53,22 @@ handle_call(_Request, _From, State) ->
 
 %% @private
 handle_cast({add_worker, Pid}, State) ->
+    io:format(user, "adding worker to pool~n", []),
     MonitorRef = erlang:monitor(process, Pid),
     ets:insert(State#state.poolname, {Pid, MonitorRef, 0}),
+    io:format(user, "added worker to pool~n", []),
     {noreply, State};
 handle_cast({using_worker, Pid}, State) ->
+    io:format(user, "adding worker usage~n", []),
     ets:update_counter(State#state.poolname, Pid, {3, 1}),
+    io:format(user, "added worker usage~n", []),
     {noreply, State}.
 
 %% @private
 handle_info({'DOWN', _, _, Pid, _}, State) ->
+    io:format(user, "removing worker from pool~n", []),
     ets:delete(State#state.poolname, Pid),
+    io:format(user, "removed worker from pool~n", []),
     {noreply, State}.
 
 %% @private

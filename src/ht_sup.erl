@@ -41,11 +41,12 @@ pool_name(PoolName) ->
 
 %% @private
 init([PoolName, Limit, Module, Function, Arguments]) ->
+    PoolSpec = {pool_name(PoolName),
+        {ht_pool, start_link, [PoolName]},
+        permanent, 2000, worker, [ht_pool]},
     WorkerSupSpec = {worker_sup_name(PoolName),
         {ht_worker_sup, start_link, [PoolName, Limit, Module, Function,
                 Arguments]},
         permanent, 2000, supervisor, [ht_worker_sup]},
-    PoolSpec = {pool_name(PoolName),
-        {ht_pool, start_link, [PoolName, Limit]},
-        permanent, 2000, worker, [ht_pool]},
+    io:format(user, "starting pool supervisor~n", []),
     {ok, {{one_for_one, 5, 10}, [PoolSpec, WorkerSupSpec]}}.
