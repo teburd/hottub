@@ -11,6 +11,11 @@
 %% api
 -export([start_link/1, add_worker/2, using_worker/2]).
 
+%% test api
+-ifdef(TEST).
+-export([set_worker_usage/3]).
+-endif.
+
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
@@ -36,6 +41,11 @@ add_worker(PoolName, Pid) ->
 using_worker(PoolName, Pid) ->
     gen_server:cast(PoolName, {using_worker, Pid}).
 
+-ifdef(TEST).
+set_worker_usage(PoolName, Pid, Usage) ->
+    gen_server:call(PoolName, {set_worker_usage, Pid, Usage}).
+-endif.
+
 %% ------------------------------------------------------------------
 %% gen_server callbacks
 %% ------------------------------------------------------------------
@@ -48,8 +58,14 @@ init([PoolName]) ->
     {ok, #state{poolname=PoolName}}.
 
 %% @private
+-ifdef(TEST).
+handle_call({set_worker_usage, Pid, Usage}, _From, State) ->
+    ets:update_element(State#state.poolname, Pid, {3, Usage}),
+    {reply, ok, State}.
+-else.
 handle_call(_Request, _From, State) ->
     {reply, ok, State}.
+-endif.
 
 %% @private
 handle_cast({add_worker, Pid}, State) ->
