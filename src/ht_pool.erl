@@ -52,9 +52,7 @@ set_worker_usage(PoolName, Pid, Usage) ->
 
 %% @private
 init([PoolName]) ->
-    io:format(user, "starting ets table for pool~n", []),
     _PidTable = ets:new(PoolName, [set, protected, named_table, {read_concurrency, true}]),
-    io:format(user, "started ets table for pool~n", []),
     {ok, #state{poolname=PoolName}}.
 
 %% @private
@@ -69,37 +67,28 @@ handle_call(_Request, _From, State) ->
 
 %% @private
 handle_cast({add_worker, Pid}, State) ->
-    io:format(user, "adding worker to pool~n", []),
     MonitorRef = erlang:monitor(process, Pid),
     case ets:first(State#state.poolname) of
         '$end_of_table' ->
-            io:format(user, "setting worker stats to 0~n", []),
             ets:insert(State#state.poolname, {Pid, MonitorRef, 0});
         K ->
             [{_, _, N}] = ets:lookup(State#state.poolname, K),
-            io:format(user, "setting worker stats to ~p~n", [N]),
             ets:insert(State#state.poolname, {Pid, MonitorRef, N})
     end,
-    io:format(user, "added worker to pool~n", []),
     {noreply, State};
 handle_cast({using_worker, Pid}, State) ->
-    io:format(user, "adding worker usage~n", []),
     case ets:update_counter(State#state.poolname, Pid, {3, 1, 1000000000, -1}) of
         -1 ->
-            io:format(user, "worker usage rollover~n", []),
             Workers = ets:tab2list(State#state.poolname),
-            lists:foreach(fun({K, _, _}) -> ets:update_counter(State#state.poolname, K, 0) end, Workers);
+            lists:foreach(fun({K, _, _}) -> ets:update_element(State#state.poolname, K, {3, 0}) end, Workers);
         _ ->
             ok
     end,
-    io:format(user, "added worker usage~n", []),
     {noreply, State}.
 
 %% @private
 handle_info({'DOWN', _, _, Pid, _}, State) ->
-    io:format(user, "removing worker from pool~n", []),
     ets:delete(State#state.poolname, Pid),
-    io:format(user, "removed worker from pool~n", []),
     {noreply, State}.
 
 %% @private

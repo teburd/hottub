@@ -30,7 +30,6 @@ worker(PoolName) ->
         undefined ->
            undefined;
         {Pid, N} ->
-            io:format(user, "using worker ~p with usage ~p~n", [Pid, N]),
             ht_pool:using_worker(PoolName, Pid),
             Pid
     end.

@@ -47,5 +47,4 @@ init([PoolName, Limit, M, F, A]) ->
                 {ht_worker, start_worker, [PoolName, {M, F, A}]},
                 permanent, 2000, worker, [ht_worker, M]}
         end, lists:seq(0, Limit-1)),
-    io:format(user, "starting worker pool sup~n", []),
     {ok, {{one_for_one, 10, 60}, ChildSpecs}}.

@@ -48,5 +48,4 @@ init([PoolName, Limit, Module, Function, Arguments]) ->
         {ht_worker_sup, start_link, [PoolName, Limit, Module, Function,
                 Arguments]},
         permanent, 2000, supervisor, [ht_worker_sup]},
-    io:format(user, "starting pool supervisor~n", []),
     {ok, {{one_for_one, 5, 10}, [PoolSpec, WorkerSupSpec]}}.
