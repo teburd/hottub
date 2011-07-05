@@ -23,15 +23,16 @@ worker(PoolName) ->
     Worker = ets:foldl(
         fun 
             ({Pid, _, N}, undefined) -> {Pid, N};
-            ({Pid, _, N}, {_OPid, A}) when N < A -> {Pid, N};
+            ({Pid, _, N}, {_OPid, A}) when A > N -> {Pid, N};
             ({_, _, _}, {OPid, A}) -> {OPid, A}
         end, undefined, PoolName),
     case Worker of
         undefined ->
            undefined;
-        {Pid, _N} ->
-           ht_pool:using_worker(PoolName, Pid),
-           Pid 
+        {Pid, N} ->
+            io:format(user, "using worker ~p with usage ~p~n", [Pid, N]),
+            ht_pool:using_worker(PoolName, Pid),
+            Pid
     end.
 
 %% @doc Perform a gen_server:call with a worker process.

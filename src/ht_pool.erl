@@ -59,7 +59,8 @@ handle_cast({add_worker, Pid}, State) ->
         '$end_of_table' ->
             io:format(user, "setting worker stats to 0~n", []),
             ets:insert(State#state.poolname, {Pid, MonitorRef, 0});
-        {_, _, N} ->
+        K ->
+            [{_, _, N}] = ets:lookup(State#state.poolname, K),
             io:format(user, "setting worker stats to ~p~n", [N]),
             ets:insert(State#state.poolname, {Pid, MonitorRef, N})
     end,

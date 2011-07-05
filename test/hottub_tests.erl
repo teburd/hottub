@@ -13,3 +13,19 @@ pool_test() ->
     ?assertEqual(true, is_pid(hottub:worker(test_pool))),
     ?debugHere,
     ok.
+
+pool_usage_test() ->
+    ?debugHere,
+    hottub:start(test_usage_pool, 2, test_worker, start_link, []),
+    timer:sleep(10),
+    ?debugHere,
+    lists:foreach(fun(_) -> test_worker:increment(hottub:worker(test_usage_pool)) end, lists:seq(0, 9)),
+    timer:sleep(1000),
+    ?debugHere,
+    ?debugVal(ets:tab2list(test_usage_pool)),
+    test_worker:crash(hottub:worker(test_usage_pool)),
+    ?debugHere,
+    timer:sleep(20),
+    ?debugVal(ets:tab2list(test_usage_pool)),
+    ?debugHere,
+    ok.
