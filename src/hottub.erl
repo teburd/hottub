@@ -29,7 +29,7 @@ worker(PoolName) ->
     case Worker of
         undefined ->
            undefined;
-        {Pid, N} ->
+        {Pid, _N} ->
             ht_pool:using_worker(PoolName, Pid),
             Pid
     end.
