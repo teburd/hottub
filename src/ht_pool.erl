@@ -9,17 +9,12 @@
 -behaviour(gen_server).
 
 %% api
--export([start_link/1, add_worker/2]).
-
-%% test api
--ifdef(TEST).
--export([set_worker_usage/3]).
--endif.
+-export([start_link/1, add_worker/2, checkout_worker/1, checkin_worker/2]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
--record(state, {poolname=undefined}).
+-record(state, {poolname=undefined, checkouts=queue:new()}).
 
 
 %% ----------------------------------------------------------------------------
@@ -36,6 +31,41 @@ start_link(PoolName) ->
 add_worker(PoolName, Pid) ->
     gen_server:cast(PoolName, {add_worker, Pid}).
 
+%% @doc Checkin a worker.
+-spec checkin_worker(PoolName::atom(), Pid::pid()) -> term().
+checkin_worker(PoolName, Pid) ->
+    gen_server:cast(PoolName, {checkin_worker, Pid}).
+
+%% @doc Checkout a worker.
+-spec checkout_worker(PoolName::atom()) -> Worker::pid() | undefined.
+checkout_worker(PoolName) ->
+    Worker = checkout_worker(PoolName, ets:first(PoolName)),
+    case Worker of
+        undefined ->
+            checkout_next_worker(PoolName);
+        Pid ->
+            Pid
+    end.
+
+%% @doc Wait for a worker to be checked in and check it out.
+-spec checkout_next_worker(PoolName::atom()) -> Pid::pid().
+checkout_next_worker(PoolName) ->
+    gen_server:call(PoolName, {checkout_next_worker}).
+
+
+%% ------------------------------------------------------------------
+%% private api 
+%% ------------------------------------------------------------------
+
+%% @doc Checkout a worker using an atomic ets update_counter operation.
+-spec checkout_worker(PoolName::atom(), Worker::pid()) -> Worker::pid() | undefined.
+checkout_worker(_PoolName, '$end_of_table') ->
+    undefined;
+checkout_worker(PoolName, Worker) ->
+    case ets:update_counter(PoolName, Worker, {3, 1}) of
+        1 -> Worker;
+        _ -> checkout_worker(PoolName, ets:next(PoolName, Worker)) 
+    end.
 
 %% ------------------------------------------------------------------
 %% gen_server callbacks
@@ -43,24 +73,36 @@ add_worker(PoolName, Pid) ->
 
 %% @private
 init([PoolName]) ->
-    _PidTable = ets:new(PoolName, [set, public, named_table, {read_concurrency, true}, {write_concurrency, true}]),
+    ets:new(PoolName, [set, public, named_table,
+            {read_concurrency, true}, {write_concurrency, true}]),
     {ok, #state{poolname=PoolName}}.
 
 %% @private
--ifdef(TEST).
-handle_call({set_worker_usage, Pid, Usage}, _From, State) ->
-    ets:update_element(State#state.poolname, Pid, {3, Usage}),
-    {reply, ok, State}.
--else.
-handle_call(_Request, _From, State) ->
-    {reply, ok, State}.
--endif.
+handle_call({checkout_next_worker}, From, State) ->
+    Queue = queue:in(From, State#state.checkouts),
+    {noreply, State#state{checkouts=Queue}}.
 
 %% @private
-handle_cast({add_worker, Pid}, State) ->
-    MonitorRef = erlang:monitor(process, Pid),
-    ets:insert(State#state.poolname, {Pid, MonitorRef, 0}),
-    {noreply, State}.
+handle_cast({checkin_worker, Worker}, State) ->
+    case queue:out(State#state.checkouts) of
+        {{value, P}, Checkouts} ->
+            gen_server:reply(P, Worker),
+            {noreply, State#state{checkouts=Checkouts}};
+        {empty, _Checkouts} ->
+            ets:update_element(State#state.poolname, Worker, {3, 0}),
+            {noreply, State}
+    end;
+handle_cast({add_worker, Worker}, State) ->
+    MonitorRef = erlang:monitor(process, Worker),
+    case queue:out(State#state.checkouts) of
+        {{value, P}, Checkouts} ->
+            ets:insert(State#state.poolname, {Worker, MonitorRef, 1}),
+            gen_server:reply(P, Worker),
+            {noreply, State#state{checkouts=Checkouts}};
+        {empty, _Checkouts} ->
+            ets:insert(State#state.poolname, {Worker, MonitorRef, 0}),
+            {noreply, State}
+    end.
 
 %% @private
 handle_info({'DOWN', _, _, Pid, _}, State) ->

@@ -20,50 +20,25 @@ start(PoolName, Limit, Module, Function, Args) ->
 %% @doc Perform a gen_server:call with a worker process.
 -spec call(PoolName::atom(), Args::any()) -> Result::any().
 call(PoolName, Args) ->
-    gen_server:call(worker(PoolName), Args).
+    execute(PoolName,
+        fun(Worker) ->
+            gen_server:call(Worker, Args)
+        end).
 
 %% @doc Perform a gen_server:call with a worker process.
 -spec cast(PoolName::atom(), Args::any()) -> Result::any().
 cast(PoolName, Args) ->
-    gen_server:cast(worker(PoolName), Args).
+    execute(PoolName,
+        fun(Worker) ->
+            gen_server:cast(Worker, Args)
+        end).
 
-
-%% ----------------------------------------------------------------------------
-%% private api
-%% ----------------------------------------------------------------------------
-
-%% @doc Mark a worker as used.
--spec mark_worker(PoolName::atom(), Pid::pid()) -> ok.
-mark_worker(PoolName, Pid) ->
-    ets:update_counter(PoolName, Pid, {3, 1}),
-    ok.
-
-%% @doc Mark a worker as being unused.
--spec unmark_worker(PoolName::atom(), Pid::pid()) -> ok.
-unmark_worker(PoolName, Pid) ->
-    ets:update_counter(PoolName, Pid, {3, -1}),
-    ok.
-
-%% @doc Checkout a worker.
--spec checkout_worker(PoolName::atom()) -> Worker::pid() | undefined.
-checkout_worker(PoolName) ->
-    Worker = ets:foldl(
-        fun 
-            ({Pid, _, N}, undefined) -> {Pid, N};
-            ({Pid, _, N}, {_OPid, A}) when A > N -> {Pid, N};
-            ({_, _, _}, {OPid, A}) -> {OPid, A}
-        end, undefined, PoolName),
-    case Worker of
-        undefined ->
-           undefined;
-        {Pid, N} ->
-            mark_worker(PoolName, Pid),
-            Pid
+%% @doc Execute a function using a worker.
+-spec execute(PoolName::atom(), Function::fun((Worker::pid()) -> Result::any())) -> Result::any().
+execute(PoolName, Function) ->
+    Worker = ht_pool:checkout_worker(PoolName),
+    try
+        Function(Worker)
+    after
+        ht_pool:checkin_worker(PoolName, Worker)
     end.
-
-%% @doc Checkin a worker.
--spec checkin_worker(PoolName::atom(), Worker::pid()) -> ok.
-checkin_worker(PoolName, Worker) ->
-    unmark_worker(PoolName, Worker).
-
-
