@@ -9,7 +9,7 @@
 -behaviour(gen_server).
 
 %% api
--export([start_link/1, add_worker/2, using_worker/2]).
+-export([start_link/1, add_worker/2]).
 
 %% test api
 -ifdef(TEST).
@@ -36,15 +36,6 @@ start_link(PoolName) ->
 add_worker(PoolName, Pid) ->
     gen_server:cast(PoolName, {add_worker, Pid}).
 
-%% @doc Called by hottub to signify usage.
--spec using_worker(PoolName::atom(), Pid::pid()) -> term().
-using_worker(PoolName, Pid) ->
-    gen_server:cast(PoolName, {using_worker, Pid}).
-
--ifdef(TEST).
-set_worker_usage(PoolName, Pid, Usage) ->
-    gen_server:call(PoolName, {set_worker_usage, Pid, Usage}).
--endif.
 
 %% ------------------------------------------------------------------
 %% gen_server callbacks
@@ -52,7 +43,7 @@ set_worker_usage(PoolName, Pid, Usage) ->
 
 %% @private
 init([PoolName]) ->
-    _PidTable = ets:new(PoolName, [set, protected, named_table, {read_concurrency, true}]),
+    _PidTable = ets:new(PoolName, [set, public, named_table, {read_concurrency, true}, {write_concurrency, true}]),
     {ok, #state{poolname=PoolName}}.
 
 %% @private
@@ -68,22 +59,7 @@ handle_call(_Request, _From, State) ->
 %% @private
 handle_cast({add_worker, Pid}, State) ->
     MonitorRef = erlang:monitor(process, Pid),
-    case ets:first(State#state.poolname) of
-        '$end_of_table' ->
-            ets:insert(State#state.poolname, {Pid, MonitorRef, 0});
-        K ->
-            [{_, _, N}] = ets:lookup(State#state.poolname, K),
-            ets:insert(State#state.poolname, {Pid, MonitorRef, N})
-    end,
-    {noreply, State};
-handle_cast({using_worker, Pid}, State) ->
-    case ets:update_counter(State#state.poolname, Pid, {3, 1, 1000000000, -1}) of
-        -1 ->
-            Workers = ets:tab2list(State#state.poolname),
-            lists:foreach(fun({K, _, _}) -> ets:update_element(State#state.poolname, K, {3, 0}) end, Workers);
-        _ ->
-            ok
-    end,
+    ets:insert(State#state.poolname, {Pid, MonitorRef, 0}),
     {noreply, State}.
 
 %% @private

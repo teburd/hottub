@@ -1,11 +1,11 @@
 %% @author Tom Burdick <thomas.burdick@gmail.com>
 %% @copyright 2011 Tom Burdick
-%% @doc Hot Tub Shell and Testing API. For real usage you should use ht_sup.
+%% @doc Hottub API
 
 -module(hottub).
 
 %% api
--export([start/5, worker/1, call/2, cast/2]).
+-export([start/5, execute/2, call/2, cast/2]).
 
 
 %% ----------------------------------------------------------------------------
@@ -17,23 +17,6 @@
 start(PoolName, Limit, Module, Function, Args) ->
     ht_sup:start_link(PoolName, Limit, Module, Function, Args).
 
-%% @doc Get a worker Pid.
--spec worker(PoolName::atom()) -> Worker::pid() | undefined.
-worker(PoolName) ->
-    Worker = ets:foldl(
-        fun 
-            ({Pid, _, N}, undefined) -> {Pid, N};
-            ({Pid, _, N}, {_OPid, A}) when A > N -> {Pid, N};
-            ({_, _, _}, {OPid, A}) -> {OPid, A}
-        end, undefined, PoolName),
-    case Worker of
-        undefined ->
-           undefined;
-        {Pid, _N} ->
-            ht_pool:using_worker(PoolName, Pid),
-            Pid
-    end.
-
 %% @doc Perform a gen_server:call with a worker process.
 -spec call(PoolName::atom(), Args::any()) -> Result::any().
 call(PoolName, Args) ->
@@ -43,4 +26,44 @@ call(PoolName, Args) ->
 -spec cast(PoolName::atom(), Args::any()) -> Result::any().
 cast(PoolName, Args) ->
     gen_server:cast(worker(PoolName), Args).
+
+
+%% ----------------------------------------------------------------------------
+%% private api
+%% ----------------------------------------------------------------------------
+
+%% @doc Mark a worker as used.
+-spec mark_worker(PoolName::atom(), Pid::pid()) -> ok.
+mark_worker(PoolName, Pid) ->
+    ets:update_counter(PoolName, Pid, {3, 1}),
+    ok.
+
+%% @doc Mark a worker as being unused.
+-spec unmark_worker(PoolName::atom(), Pid::pid()) -> ok.
+unmark_worker(PoolName, Pid) ->
+    ets:update_counter(PoolName, Pid, {3, -1}),
+    ok.
+
+%% @doc Checkout a worker.
+-spec checkout_worker(PoolName::atom()) -> Worker::pid() | undefined.
+checkout_worker(PoolName) ->
+    Worker = ets:foldl(
+        fun 
+            ({Pid, _, N}, undefined) -> {Pid, N};
+            ({Pid, _, N}, {_OPid, A}) when A > N -> {Pid, N};
+            ({_, _, _}, {OPid, A}) -> {OPid, A}
+        end, undefined, PoolName),
+    case Worker of
+        undefined ->
+           undefined;
+        {Pid, N} ->
+            mark_worker(PoolName, Pid),
+            Pid
+    end.
+
+%% @doc Checkin a worker.
+-spec checkin_worker(PoolName::atom(), Worker::pid()) -> ok.
+checkin_worker(PoolName, Worker) ->
+    unmark_worker(PoolName, Worker).
+
 
