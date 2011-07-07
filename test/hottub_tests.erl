@@ -16,7 +16,11 @@ pool_crash_test() ->
     ok.
 
 %% Benchmark Pool Checkout/Checkin Test.
-pool_benchmark_test() ->
+pool_benchmark_test_() ->
+    {timeout, 120, ?_assertEqual(ok, begin benchmark() end)}.
+
+benchmark() ->
+    NWorkers = 500,
     hottub:start(bench_pool, 100, test_worker, start_link, []),
     BenchFun = fun() ->
         hottub:execute(bench_pool,
@@ -24,26 +28,17 @@ pool_benchmark_test() ->
                 test_worker:nothing(Worker)
             end)
     end,
-    ets:new(ht_stats, [duplicate_bag, public, named_table,
-            {read_concurrency, true}, {write_concurrency, true}]),
     BenchWorkers = lists:map(
         fun(Id) ->
-            {ok, Pid} = benchmark:start_link(Id, ht_stats),
-            benchmark:perform(Pid, BenchFun, 200),
+            {ok, Pid} = benchmark:start_link(Id),
+            benchmark:perform(Pid, BenchFun, 1000),
             Pid
-    end, lists:seq(0, 200)),
-    lists:foreach(
-        fun(Pid) ->
-            benchmark:done(Pid),
-            benchmark:stop(Pid)
-        end, BenchWorkers),
-    {Min, Max, Sum, Count} = ets:foldl(
-        fun
-            ({Tdiff}, undefined) ->
-                {Tdiff, Tdiff, Tdiff, 1};
-            ({Tdiff}, {Min, Max, Sum, Count}) ->
-                {min(Min, Tdiff), max(Max, Tdiff), Sum+Tdiff, Count+1}
-        end, undefined, ht_stats),
-    Mean = Sum/Count,
+    end, lists:seq(0, NWorkers)),
+    {Min, Max, AvgSum} = lists:foldl(
+        fun(Pid, {Min, Max, AvgSum}) ->
+            {RMin, RMax, RAvg} = benchmark:results(Pid),
+            {min(RMin, Min), max(RMax, Max), AvgSum + RAvg}
+        end, {10000000000, 0, 0}, BenchWorkers),
+    Mean = AvgSum/NWorkers,
     io:format(user, "Benchmark Results: Min ~pms, Max ~pms, Mean ~pms~n", [Min, Max, Mean]),
     ok.
