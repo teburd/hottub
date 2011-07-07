@@ -37,9 +37,13 @@ pool_benchmark_test() ->
             benchmark:done(Pid),
             benchmark:stop(Pid)
         end, BenchWorkers),
-    {MinTime, MeanTime, MaxTime} = ets:foldl(
-        fun({Begin, End}, {Min, Mean, Avg}) ->
-            {0.0, 0.0, 0.0}
-        end, {0, 0, 0}, ht_stats),
-    io:format(user, "Benchmark Results: Min ~p, Max ~p, Mean ~p~n", [MinTime, MaxTime, MeanTime]),
+    {Min, Max, Sum, Count} = ets:foldl(
+        fun
+            ({Tdiff}, undefined) ->
+                {Tdiff, Tdiff, Tdiff, 1};
+            ({Tdiff}, {Min, Max, Sum, Count}) ->
+                {min(Min, Tdiff), max(Max, Tdiff), Sum+Tdiff, Count+1}
+        end, undefined, ht_stats),
+    Mean = Sum/Count,
+    io:format(user, "Benchmark Results: Min ~p, Max ~p, Mean ~p~n", [Min, Max, Mean]),
     ok.

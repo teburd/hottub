@@ -57,11 +57,12 @@ handle_call(_Request, _From, State) ->
 %% @private
 handle_cast({perform, Function, Times}, State) ->
     lists:foreach(
-        fun(I) -> 
+        fun(_) -> 
             Begin = erlang:now(),
             Function(),
             End = erlang:now(),
-            ets:insert(State#state.stats_table, {Begin, End})
+            Tdiff = timer:now_diff(End, Begin)*0.001,
+            ets:insert(State#state.stats_table, {Tdiff})
         end,
         lists:seq(0, Times-1)),
     {noreply, State};
