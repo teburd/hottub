@@ -66,13 +66,16 @@ used_worker_table(PoolName) ->
     list_to_atom(atom_to_list(PoolName) ++ "_used").
 
 %% @doc Checkout a worker using an atomic ets update_counter operation.
--spec checkout_worker(PoolName::atom(), Worker::pid()) -> Worker::pid() | undefined.
-checkout_worker(_PoolName, '$end_of_table') ->
+-spec checkout_worker(UnusedTable::atom(), UsedTable::atom(), Worker::pid()) -> Worker::pid() | undefined.
+checkout_worker(_UnusedTable, _UsedTable, '$end_of_table') ->
     undefined;
-checkout_worker(PoolName, Worker) ->
-    case ets:update_counter(PoolName, Worker, {3, 1}) of
-        1 -> Worker;
-        _ -> checkout_worker(PoolName, ets:next(PoolName, Worker)) 
+checkout_worker(UnusedTable, UsedTable, Worker) ->
+    Object = ets:lookup(UnusedTable, Worker),
+    case ets:insert_new(UsedTable, Object) of
+        true ->
+            ets:delete(UnusedTable, Worker),
+            Worker;
+        false -> checkout_worker(UnusedTable, UsedTable, ets:next(UnusedTable, Worker)) 
     end.
 
 %% ------------------------------------------------------------------
@@ -81,13 +84,17 @@ checkout_worker(PoolName, Worker) ->
 
 %% @private
 init([PoolName]) ->
-    ets:new(PoolName, [set, public, named_table,
+    UnusedTable = unused_worker_table(PoolName),
+    ets:new(UnusedTable, [set, public, named_table,
             {read_concurrency, true}, {write_concurrency, true}]),
-    {ok, #state{poolname=PoolName}}.
+    UsedTable = used_worker_table(PoolName),
+    ets:new(UsedTable, [set, public, named_table,
+            {read_concurrency, true}, {write_concurrency, true}]),
+    {ok, #state{poolname=PoolName, unused=UnusedTable, used=UsedTable}}.
 
 %% @private
 handle_call({checkout_next_worker}, From, State) ->
-    case checkout_worker(State#state.poolname, ets:first(State#state.poolname)) of
+    case checkout_worker(State#state.unused, ets:first(State#state.unused)) of
         undefined ->
             Queue = queue:in(From, State#state.checkouts),
             {noreply, State#state{checkouts=Queue}};
