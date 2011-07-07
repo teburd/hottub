@@ -7,10 +7,22 @@ Goals
 -----
 
 * Keeps some number of worker processes alive at all times.
-* Load balance requests by picking the least used worker.
+* Be very fast on average under load.
 
 Primarily I have used this for database workers though other uses are clearly
 possible.
+
+
+Implementations
+---------------
+
+There are 3 pool manager implementations to choose from with different performance
+characteristics. One that uses a single ets table and a counter, one that uses two
+ets tables, one that uses a queue and a set held by a process.
+
+There is a benchmark as part of the test suite which can be run against the 3
+branches to give you an idea of which one works will under your circumstances.
+
 
 Example Usage
 -------------
