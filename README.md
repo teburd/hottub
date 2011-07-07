@@ -7,7 +7,8 @@ Goals
 -----
 
 * Keeps some number of worker processes alive at all times.
-* Be very fast on average under load.
+* Add as little latency as possible to using a worker process under all
+  circumstances.
 
 Primarily I have used this for database workers though other uses are clearly
 possible.
@@ -18,10 +19,22 @@ Implementations
 
 There are 3 pool manager implementations to choose from with different performance
 characteristics. One that uses a single ets table and a counter, one that uses two
-ets tables, one that uses a queue and a set held by a process.
+ets tables, one that uses a queue and a set held by a single process.
+
+In all cases a single process is used to queue worker requests. In the
+ETS table implementations the process may be ideally avoided if there are
+more workers than requestors.
+
+From my experience
+
+* Queue + Set method is very fast under heavy load.
+* Single ETS table is very fast under light load.
+* Two ETS tables is reasonably fast under light and heavy loads.
 
 There is a benchmark as part of the test suite which can be run against the 3
 branches to give you an idea of which one works will under your circumstances.
+
+The master branch is the queue + set pool management method.
 
 
 Example Usage
