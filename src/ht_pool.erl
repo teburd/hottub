@@ -14,7 +14,7 @@
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
--record(state, {poolname=undefined, unused=undefined, used=undefined, checkouts=queue:new()}).
+-record(state, {poolname=undefined, unused=queue:new(), workers=sets:new(), checkouts=queue:new()}).
 
 
 %% ----------------------------------------------------------------------------
@@ -39,52 +39,8 @@ checkin_worker(PoolName, Pid) ->
 %% @doc Checkout a worker.
 -spec checkout_worker(PoolName::atom()) -> Worker::pid() | undefined.
 checkout_worker(PoolName) ->
-    UnusedTable = unused_worker_table(PoolName),
-    UsedTable = used_worker_table(PoolName),
-    ets:safe_fixtable(UnusedTable, true),
-    Worker = checkout_worker(UnusedTable, UsedTable, ets:first(UnusedTable)),
-    ets:safe_fixtable(UnusedTable, false),
-    case Worker of
-        undefined ->
-            checkout_next_worker(PoolName);
-        Pid ->
-            Pid
-    end.
+    gen_server:call(PoolName, {checkout_worker}).
 
-%% @doc Wait for a worker to be checked in and check it out.
--spec checkout_next_worker(PoolName::atom()) -> Pid::pid().
-checkout_next_worker(PoolName) ->
-    gen_server:call(PoolName, {checkout_next_worker}).
-
-
-%% ------------------------------------------------------------------
-%% private api 
-%% ------------------------------------------------------------------
-
-%% @doc Unused Worker Table Name
-unused_worker_table(PoolName) ->
-    list_to_atom(atom_to_list(PoolName) ++ "_unused").
-
-%% @doc Used Worker Table Name
-used_worker_table(PoolName) ->
-    list_to_atom(atom_to_list(PoolName) ++ "_used").
-
-%% @doc Checkout a worker using an atomic ets update_counter operation.
--spec checkout_worker(UnusedTable::atom(), UsedTable::atom(), Worker::pid()) -> Worker::pid() | undefined.
-checkout_worker(_UnusedTable, _UsedTable, '$end_of_table') ->
-    undefined;
-checkout_worker(UnusedTable, UsedTable, Worker) ->
-    case ets:lookup(UnusedTable, Worker) of
-        [Object] ->
-            case ets:insert_new(UsedTable, Object) of
-                true ->
-                    ets:delete(UnusedTable, Worker),
-                    Worker;
-                false -> checkout_worker(UnusedTable, UsedTable, ets:next(UnusedTable, Worker)) 
-            end;
-        [] ->
-            checkout_worker(UnusedTable, UsedTable, ets:next(UnusedTable, Worker))
-    end.
 
 %% ------------------------------------------------------------------
 %% gen_server callbacks
@@ -92,26 +48,16 @@ checkout_worker(UnusedTable, UsedTable, Worker) ->
 
 %% @private
 init([PoolName]) ->
-    UnusedTable = unused_worker_table(PoolName),
-    io:format(user, "unused table is ~p~n", [UnusedTable]),
-    ets:new(UnusedTable, [set, public, named_table,
-            {read_concurrency, true}, {write_concurrency, true}]),
-    UsedTable = used_worker_table(PoolName),
-    ets:new(UsedTable, [set, public, named_table,
-            {read_concurrency, true}, {write_concurrency, true}]),
-    {ok, #state{poolname=PoolName, unused=UnusedTable, used=UsedTable}}.
+    {ok, #state{poolname=PoolName}}.
 
 %% @private
-handle_call({checkout_next_worker}, From, State) ->
-    ets:safe_fixtable(State#state.unused, true),
-    case checkout_worker(State#state.unused, State#state.used, ets:first(State#state.unused)) of
-        undefined ->
-            ets:safe_fixtable(State#state.unused, false),
-            Queue = queue:in(From, State#state.checkouts),
-            {noreply, State#state{checkouts=Queue}};
-        Pid ->
-            ets:safe_fixtable(State#state.unused, false),
-            {reply, Pid, State}
+handle_call({checkout_worker}, From, State) ->
+    case queue:out(State#state.unused) of
+        {{value, Worker}, Unused} ->
+            {reply, Worker, State#state{unused=Unused}};
+        {empty, _Unused} ->
+            Checkouts = queue:in(From, State#state.checkouts),
+            {noreply, State#state{checkouts=Checkouts}}
     end.
 
 %% @private
@@ -121,32 +67,26 @@ handle_cast({checkin_worker, Worker}, State) ->
             gen_server:reply(P, Worker),
             {noreply, State#state{checkouts=Checkouts}};
         {empty, _Checkouts} ->
-            case ets:lookup(State#state.used, Worker) of
-                [Object] ->
-                    ets:delete(State#state.used, Worker),
-                    ets:insert(State#state.unused, Object),
-                    {noreply, State};
-                [] ->
-                    {noreply, State}
-            end
-    end;
+            Unused = queue:in(Worker, State#state.unused),
+            {noreply, State#state{unused=Unused}}
+        end;
 handle_cast({add_worker, Worker}, State) ->
-    MonitorRef = erlang:monitor(process, Worker),
+    erlang:monitor(process, Worker),
+    Workers = sets:add_element(Worker, State#state.workers),
     case queue:out(State#state.checkouts) of
         {{value, P}, Checkouts} ->
-            ets:insert(State#state.used, {Worker, MonitorRef}),
             gen_server:reply(P, Worker),
-            {noreply, State#state{checkouts=Checkouts}};
+            {noreply, State#state{checkouts=Checkouts, workers=Workers}};
         {empty, _Checkouts} ->
-            ets:insert(State#state.unused, {Worker, MonitorRef}),
-            {noreply, State}
+            Unused = queue:in(Worker, State#state.unused),
+            {noreply, State#state{unused=Unused, workers=Workers}}
     end.
 
 %% @private
 handle_info({'DOWN', _, _, Worker, _}, State) ->
-    ets:delete(State#state.unused, Worker),
-    ets:delete(State#state.used, Worker),
-    {noreply, State}.
+    Workers = sets:del_element(Worker, State#state.workers),
+    Unused = queue:from_list(lists:delete(Worker, queue:to_list(State#state.unused))),
+    {noreply, State#state{workers=Workers, unused=Unused}}.
 
 %% @private
 terminate(_Reason, _State) ->
