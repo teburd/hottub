@@ -57,6 +57,14 @@ checkout_next_worker(PoolName) ->
 %% private api 
 %% ------------------------------------------------------------------
 
+%% @doc Unused Worker Table Name
+unused_worker_table(PoolName) ->
+    list_to_atom(atom_to_list(PoolName) ++ "_unused").
+
+%% @doc Used Worker Table Name
+used_worker_table(PoolName) ->
+    list_to_atom(atom_to_list(PoolName) ++ "_used").
+
 %% @doc Checkout a worker using an atomic ets update_counter operation.
 -spec checkout_worker(PoolName::atom(), Worker::pid()) -> Worker::pid() | undefined.
 checkout_worker(_PoolName, '$end_of_table') ->
@@ -79,8 +87,13 @@ init([PoolName]) ->
 
 %% @private
 handle_call({checkout_next_worker}, From, State) ->
-    Queue = queue:in(From, State#state.checkouts),
-    {noreply, State#state{checkouts=Queue}}.
+    case checkout_worker(State#state.poolname, ets:first(State#state.poolname)) of
+        undefined ->
+            Queue = queue:in(From, State#state.checkouts),
+            {noreply, State#state{checkouts=Queue}};
+        Pid ->
+            {reply, Pid, State}
+    end.
 
 %% @private
 handle_cast({checkin_worker, Worker}, State) ->

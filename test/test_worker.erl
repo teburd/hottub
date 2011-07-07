@@ -24,6 +24,11 @@
 start_link() ->
     gen_server:start_link(?MODULE, [], []).
 
+%% @doc Do nothing.
+-spec nothing(Pid::pid()) -> ok.
+nothing(_) ->
+    ok.
+
 %% @doc Increment counter.
 -spec increment(Pid::pid()) -> any().
 increment(Pid) ->
