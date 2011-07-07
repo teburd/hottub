@@ -29,9 +29,9 @@ pool_benchmark_test() ->
     BenchWorkers = lists:map(
         fun(Id) ->
             {ok, Pid} = benchmark:start_link(Id, ht_stats),
-            benchmark:perform(Pid, BenchFun, 100),
+            benchmark:perform(Pid, BenchFun, 200),
             Pid
-    end, lists:seq(0, 100)),
+    end, lists:seq(0, 200)),
     lists:foreach(
         fun(Pid) ->
             benchmark:done(Pid),
@@ -45,5 +45,5 @@ pool_benchmark_test() ->
                 {min(Min, Tdiff), max(Max, Tdiff), Sum+Tdiff, Count+1}
         end, undefined, ht_stats),
     Mean = Sum/Count,
-    io:format(user, "Benchmark Results: Min ~p, Max ~p, Mean ~p~n", [Min, Max, Mean]),
+    io:format(user, "Benchmark Results: Min ~pms, Max ~pms, Mean ~pms~n", [Min, Max, Mean]),
     ok.
