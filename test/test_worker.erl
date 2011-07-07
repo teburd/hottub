@@ -7,7 +7,7 @@
 -behaviour(gen_server).
 
 %% api
--export([start_link/0, crash/1, increment/1, count/1, stop/1]).
+-export([start_link/0, nothing/1, crash/1, increment/1, count/1, stop/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -56,12 +56,10 @@ stop(Pid) ->
 
 %% @private
 init([]) ->
-    io:format(user, "starting test worker~n", []),
     {ok, #state{}}.
 
 %% @private
 handle_call({increment}, _From, State) ->
-    io:format(user, "incrementing count~n", []),
     C = State#state.count + 1,
     {reply, ok, State#state{count=C}};
 handle_call({count}, _From, State) ->
@@ -71,10 +69,8 @@ handle_call(_Request, _From, State) ->
 
 %% @private
 handle_cast({crash}, State) ->
-    io:format(user, "crashing test worker~n", []),
     {stop, crash, State};
 handle_cast({stop}, State) ->
-    io:format(user, "stopping test worker~n", []),
     {stop, normal, State}.
 
 %% @private
@@ -82,8 +78,7 @@ handle_info(_Info, State) ->
     {noreply, State}.
 
 %% @private
-terminate(Reason, _State) ->
-    io:format(user, "test worker terminating with reason ~p~n", [Reason]),
+terminate(_Reason, _State) ->
     ok.
 
 %% @private

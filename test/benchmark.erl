@@ -32,7 +32,7 @@ perform(Pid, Function, Times) ->
 %% @doc Wait until the server is done working.
 -spec done(Pid::pid()) -> ok.
 done(Pid) ->
-    gen_server:call(Pid, {done}).
+    gen_server:call(Pid, {done}, infinity).
 
 %% @doc Stop a benchmark worker.
 -spec stop(Pid::pid()) -> any().
@@ -46,7 +46,6 @@ stop(Pid) ->
 
 %% @private
 init([Id, StatsTable]) ->
-    io:format(user, "starting benchmark worker ~p~n", [Id]),
     {ok, #state{id=Id, stats_table=StatsTable}}.
 
 %% @private
@@ -57,7 +56,6 @@ handle_call(_Request, _From, State) ->
 
 %% @private
 handle_cast({perform, Function, Times}, State) ->
-    io:format(user, "benchmark worker ~p performing function ~p ~p times~n", [State#state.id, Function, Times]),
     lists:foreach(
         fun(I) -> 
             Begin = erlang:now(),
@@ -66,9 +64,8 @@ handle_cast({perform, Function, Times}, State) ->
             ets:insert(State#state.stats_table, {Begin, End})
         end,
         lists:seq(0, Times-1)),
-    {stop, crash, State};
+    {noreply, State};
 handle_cast({stop}, State) ->
-    io:format(user, "stopping test worker~n", []),
     {stop, normal, State}.
 
 %% @private
@@ -76,8 +73,7 @@ handle_info(_Info, State) ->
     {noreply, State}.
 
 %% @private
-terminate(Reason, _State) ->
-    io:format(user, "test worker terminating with reason ~p~n", [Reason]),
+terminate(_Reason, _State) ->
     ok.
 
 %% @private

@@ -13,7 +13,6 @@ pool_crash_test() ->
         fun(Worker) ->
             ?assert(is_pid(Worker))
         end),
-    ?debugHere,
     ok.
 
 %% Benchmark Pool Checkout/Checkin Test.
@@ -25,24 +24,22 @@ pool_benchmark_test() ->
                 test_worker:nothing(Worker)
             end)
     end,
-    ets:new(ht_stats, [bag, public, named_table,
+    ets:new(ht_stats, [duplicate_bag, public, named_table,
             {read_concurrency, true}, {write_concurrency, true}]),
     BenchWorkers = lists:map(
         fun(Id) ->
-            {ok, Pid} = benchmark_worker:start_link(Id, ht_stats),
-            benchmark_worker:perform(Pid, BenchFun, 10000),
+            {ok, Pid} = benchmark:start_link(Id, ht_stats),
+            benchmark:perform(Pid, BenchFun, 100),
             Pid
-    end, lists:seq(0, 1000)),
+    end, lists:seq(0, 100)),
     lists:foreach(
         fun(Pid) ->
-            benchmark_worker:done(Pid),
-            benchmark_worker:stop(Pid),
+            benchmark:done(Pid),
+            benchmark:stop(Pid)
         end, BenchWorkers),
     {MinTime, MeanTime, MaxTime} = ets:foldl(
         fun({Begin, End}, {Min, Mean, Avg}) ->
             {0.0, 0.0, 0.0}
-        end, ht_stats),
-    ?debugVal(MinTime),
-    ?debugVal(MeanTime),
-    ?debugVal(MaxTime),
+        end, {0, 0, 0}, ht_stats),
+    io:format(user, "Benchmark Results: Min ~p, Max ~p, Mean ~p~n", [MinTime, MaxTime, MeanTime]),
     ok.
