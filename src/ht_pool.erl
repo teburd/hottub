@@ -14,7 +14,7 @@
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
--record(state, {poolname=undefined, unused=queue:new(), workers=sets:new(), checkouts=queue:new()}).
+-record(state, {poolname=undefined, unused=queue:new(), checkouts=queue:new()}).
 
 
 %% ----------------------------------------------------------------------------
@@ -72,21 +72,19 @@ handle_cast({checkin_worker, Worker}, State) ->
         end;
 handle_cast({add_worker, Worker}, State) ->
     erlang:monitor(process, Worker),
-    Workers = sets:add_element(Worker, State#state.workers),
     case queue:out(State#state.checkouts) of
         {{value, P}, Checkouts} ->
             gen_server:reply(P, Worker),
-            {noreply, State#state{checkouts=Checkouts, workers=Workers}};
+            {noreply, State#state{checkouts=Checkouts}};
         {empty, _Checkouts} ->
             Unused = queue:in(Worker, State#state.unused),
-            {noreply, State#state{unused=Unused, workers=Workers}}
+            {noreply, State#state{unused=Unused}}
     end.
 
 %% @private
 handle_info({'DOWN', _, _, Worker, _}, State) ->
-    Workers = sets:del_element(Worker, State#state.workers),
     Unused = queue:from_list(lists:delete(Worker, queue:to_list(State#state.unused))),
-    {noreply, State#state{workers=Workers, unused=Unused}}.
+    {noreply, State#state{unused=Unused}}.
 
 %% @private
 terminate(_Reason, _State) ->
