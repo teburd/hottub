@@ -40,5 +40,5 @@ benchmark() ->
             {min(RMin, Min), max(RMax, Max), AvgSum + RAvg}
         end, {10000000000, 0, 0}, BenchWorkers),
     Mean = AvgSum/NWorkers,
-    io:format(user, "Benchmark Results: Min ~pms, Max ~pms, Mean ~pms~n", [Min, Max, Mean]),
+    io:format(user, "Worker Execute Results: Min ~pms, Max ~pms, Mean ~pms~n", [Min, Max, Mean]),
     ok.
