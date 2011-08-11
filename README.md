@@ -1,7 +1,7 @@
 Hot Tub
 =======
 
-Hot Tub is a permanent erlang worker pool.
+HotTub is a permanent erlang worker pool.
 
 Goals
 -----
@@ -14,28 +14,19 @@ Primarily I have used this for database workers though other uses are clearly
 possible.
 
 
-Implementations
+Implementation
 ---------------
 
-There are 3 pool manager implementations to choose from with different performance
-characteristics. One that uses a single ets table and a counter, one that uses two
-ets tables, one that uses a queue and a set held by a single process.
+HotTub uses a gen_server process to manage a queue of available workers and
+of requests for workers. When a worker is available it is dequeued and
+given away. If there are no workers then the request for a worker is queued.
+As soon as a worker is returned if a request is queued the worker is given away.
 
-In all cases a single process is used to queue worker requests. In the
-ETS table implementations the process may be ideally avoided if there are
-more workers than requestors.
+A best effort at avoiding unnecessary work has been done however things could
+still probably be better.
 
-From my experience
-
-* Queue + Set method is very fast under heavy load.
-* Single ETS table is very fast under light load.
-* Two ETS tables is reasonably fast under light and heavy loads.
-
-There is a benchmark as part of the test suite which can be run against the 3
-branches to give you an idea of which one works will under your circumstances.
-
-The master branch is the queue + set pool management method.
-
+There is a benchmark as part of the test suite which can be run to give you an
+idea of the overhead of hottubs worker pool management routines.
 
 Example Usage
 -------------
@@ -76,7 +67,7 @@ code_change(_OldVsn, State, _Extra) ->
 erl shell
 
 ``` erlang
-hottub:start(demo, 5, demo_worker, start_link, []).
+hottub:start_link(demo, 5, demo_worker, start_link, []).
 hottub:call(demo, {add, 5, 5}).
 hottub:cast(demo, {print, "what up from a pool"}).
 hottub:with_worker(demo, 
