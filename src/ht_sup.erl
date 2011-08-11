@@ -1,13 +1,13 @@
 %% @author Tom Burdick <thomas.burdick@gmail.com>
 %% @copyright 2011 Tom Burdick.
-%% @doc Hot Tub Supervisor. 
+%% @doc HotTub Supervisor. 
 
 -module(ht_sup).
 
 -behaviour(supervisor).
 
 %% api
--export([start_link/5]).
+-export([start_link/5, stop/1]).
 
 %% supervisor callbacks
 -export([init/1]).
@@ -17,12 +17,35 @@
 %% api
 %% ----------------------------------------------------------------------------
 
-%% @doc Start linked hot tub supervisor.
+%% @doc Start linked hottub supervisor.
 -spec start_link(PoolName::string(), Limit::pos_integer(), Module::module(),
     Function::function(), Arguments::list()) -> {ok, Sup::pid()}.
 start_link(PoolName, Limit, Module, Function, Arguments) ->
+    io:format(user, "starting hottub superivsor from pid ~p~n", [self()]),
     supervisor:start_link(?MODULE, [PoolName, Limit, Module, Function, Arguments]).
 
+%% @doc Stop a hottub supervisor.
+-spec stop(PoolName::string()) -> ok.
+stop(PoolName) ->
+    io:format(user, "stopping hottub superivsor from pid ~p~n", [self()]),
+    Pid = whereis(PoolName),
+    case is_pid(Pid) of
+        true ->
+            io:format(user, "is pid~n", []),
+            exit(Pid, shutdown),
+            receive
+                {'EXIT', Pid, shutdown} ->
+                    io:format(user, "got shutdown~n", []),
+                    ok
+            after 
+                1000 ->
+                    io:format(user, "sending kill~n", []),
+                    exit(Pid, kill),
+                    ok
+            end;
+        false ->
+            ok
+    end.
 
 %% ----------------------------------------------------------------------------
 %% private api

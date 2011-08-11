@@ -5,17 +5,22 @@
 -module(hottub).
 
 %% api
--export([start/5, execute/2, call/2, cast/2]).
+-export([start_link/5, stop/1, execute/2, call/2, cast/2]).
 
 
 %% ----------------------------------------------------------------------------
 %% api
 %% ----------------------------------------------------------------------------
 
-%% @doc Start a hot tub worker pool.
--spec start(PoolName::atom(), Limit::pos_integer(), M::module(), F::function(), A::list()) -> {ok, pid()}.
-start(PoolName, Limit, Module, Function, Args) ->
+%% @doc Start a linked hottub worker pool supervisor.
+-spec start_link(PoolName::atom(), Limit::pos_integer(), M::module(), F::function(), A::list()) -> {ok, pid()}.
+start_link(PoolName, Limit, Module, Function, Args) ->
     ht_sup:start_link(PoolName, Limit, Module, Function, Args).
+
+%% @doc Stop a hottub worker pool supervisor
+-spec stop(PoolName::atom()) -> ok.
+stop(PoolName) ->
+    ht_sup:stop(PoolName).
 
 %% @doc Perform a gen_server:call with a worker process.
 -spec call(PoolName::atom(), Args::any()) -> Result::any().
