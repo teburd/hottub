@@ -70,7 +70,7 @@ erl shell
 hottub:start_link(demo, 5, demo_worker, start_link, []).
 hottub:call(demo, {add, 5, 5}).
 hottub:cast(demo, {print, "what up from a pool"}).
-hottub:with_worker(demo, 
+hottub:execute(demo, 
     fun(Worker) -> 
         io:format("causing a worker to crash~n"),
         gen_server:call(Worker, {hocus_pocus}) end).
