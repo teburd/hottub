@@ -21,26 +21,26 @@
 -spec start_link(PoolName::string(), Limit::pos_integer(), Module::module(),
     Function::function(), Arguments::list()) -> {ok, Sup::pid()}.
 start_link(PoolName, Limit, Module, Function, Arguments) ->
-    io:format(user, "starting hottub superivsor from pid ~p~n", [self()]),
-    supervisor:start_link(?MODULE, [PoolName, Limit, Module, Function, Arguments]).
+    supervisor:start_link({local, sup_name(PoolName)}, ?MODULE,
+        [PoolName, Limit, Module, Function, Arguments]).
 
 %% @doc Stop a hottub supervisor.
 -spec stop(PoolName::string()) -> ok.
 stop(PoolName) ->
-    io:format(user, "stopping hottub superivsor from pid ~p~n", [self()]),
-    Pid = whereis(PoolName),
-    case is_pid(Pid) of
+    SupName = sup_name(PoolName),
+    Pid = whereis(SupName),
+    unlink(Pid),
+    Ref = monitor(process, Pid),
+    IsPid = is_pid(Pid),
+    case IsPid of
         true ->
-            io:format(user, "is pid~n", []),
             exit(Pid, shutdown),
             receive
-                {'EXIT', Pid, shutdown} ->
-                    io:format(user, "got shutdown~n", []),
+                {'DOWN', Ref, process, Pid, shutdown} ->
                     ok
             after 
                 1000 ->
-                    io:format(user, "sending kill~n", []),
-                    exit(Pid, kill),
+                    erlang:exit(Pid, kill),
                     ok
             end;
         false ->
@@ -50,6 +50,9 @@ stop(PoolName) ->
 %% ----------------------------------------------------------------------------
 %% private api
 %% ----------------------------------------------------------------------------
+
+sup_name(PoolName) ->
+    list_to_atom(atom_to_list(PoolName) ++ "_sup").
 
 worker_sup_name(PoolName) -> 
     atom_to_list(PoolName) ++ "_worker_sup".

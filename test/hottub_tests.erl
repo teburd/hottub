@@ -3,9 +3,10 @@
 
 %% Basic Worker Pool Test.
 pool_start_stop_test() ->
-    {ok, Pid} = hottub:start_link(test_pool, 1, test_worker, start_link, []),
-    ok = hottub:stop(test_pool),
-    ?assertEqual(false, is_process_alive(Pid)).
+    {ok, Pid} = hottub:start_link(ss_pool, 1, test_worker, start_link, []),
+    ok = hottub:stop(ss_pool),
+    ?assertEqual(false, is_process_alive(Pid)),
+    ok.
 
 pool_crash_test() ->
     hottub:start_link(test_pool, 1, test_worker, start_link, []),
