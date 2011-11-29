@@ -26,7 +26,7 @@ pool_crash_test() ->
 pool_benchmark_test_() ->
     {timeout, 120, ?_assertEqual(ok, begin benchmark() end)}.
 
-pool_items_test() ->
+pending_pool_tasks_test() ->
     NWorkers = 2,
     NOps = 5000,
     io:format(user, "Creating pool of ~p workers. Running the test ~p times.\n", [NWorkers, NOps]),
@@ -38,9 +38,9 @@ pool_items_test() ->
         end)
     end, lists:seq(0, NOps)),
     timer:sleep(2500),
-    io:format(user, "\tTotal items queued in the pool: ~p\n", [ht_pool:pool_items(items_test)]),
+    io:format(user, "\tTotal items queued in the pool: ~p\n", [ht_pool:pending_pool_tasks(items_test)]),
     timer:sleep(2500),
-    io:format(user, "\tTotal items queued in the pool: ~p\n", [ht_pool:pool_items(items_test)]),
+    io:format(user, "\tTotal items queued in the pool: ~p\n", [ht_pool:pending_pool_tasks(items_test)]),
     ok.
 
 benchmark() ->
