@@ -33,8 +33,10 @@ add_worker(PoolName, Pid) ->
 
 %% @doc Checkin a worker.
 -spec checkin_worker(PoolName::atom(), Pid::pid()) -> term().
+checkin_worker(PoolName, Pid) when is_pid(Pid) ->
+    gen_server:cast(PoolName, {checkin_worker, Pid});
 checkin_worker(PoolName, Pid) ->
-    gen_server:cast(PoolName, {checkin_worker, Pid}).
+    ok.
 
 %% @doc Checkout a worker.
 -spec checkout_worker(PoolName::atom()) -> Worker::pid() | undefined.
