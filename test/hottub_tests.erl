@@ -8,6 +8,43 @@ pool_start_stop_test() ->
     ?assertEqual(false, is_process_alive(Pid)),
     ok.
 
+pool_dead_worker_test() ->
+    Pid = self(),
+    BlockFun = fun() ->
+        hottub:execute(dead_pool, fun(Worker) ->
+            Pid ! waiting,
+            receive
+                continue ->
+                    test_worker:crash(Worker)
+            end
+        end)
+    end,
+    BlockedFun = fun() ->
+        hottub:execute(dead_pool, fun(Worker) ->
+            case is_process_alive(Worker) of
+                true ->
+                    Pid ! ok;
+                false ->
+                    Pid ! fail
+            end
+        end)
+    end,
+
+    hottub:start_link(dead_pool, 1, test_worker, start_link, []),
+    Blocker = spawn(BlockFun),
+    receive
+        waiting ->
+            ok
+    end,
+    spawn(BlockedFun),
+    Blocker ! continue,
+    receive
+        ok ->
+            ok;
+        fail ->
+            ?assert(false)
+    end.
+
 pool_crash_test() ->
     hottub:start_link(test_pool, 1, test_worker, start_link, []),
     hottub:execute(test_pool,
