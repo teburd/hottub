@@ -9,6 +9,7 @@ pool_start_stop_test() ->
     ok.
 
 pool_dead_worker_test() ->
+    hottub:start_link(dead_pool, 1, test_worker, start_link, []),
     Pid = self(),
     BlockFun = fun() ->
         hottub:execute(dead_pool, fun(Worker) ->
@@ -20,6 +21,7 @@ pool_dead_worker_test() ->
         end)
     end,
     BlockedFun = fun() ->
+        Pid ! waiting,
         hottub:execute(dead_pool, fun(Worker) ->
             case is_process_alive(Worker) of
                 true ->
@@ -29,14 +31,16 @@ pool_dead_worker_test() ->
             end
         end)
     end,
-
-    hottub:start_link(dead_pool, 1, test_worker, start_link, []),
     Blocker = spawn(BlockFun),
     receive
         waiting ->
             ok
     end,
     spawn(BlockedFun),
+    receive 
+        waiting ->
+            ok
+    end,
     Blocker ! continue,
     receive
         ok ->

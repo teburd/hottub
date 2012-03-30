@@ -34,19 +34,26 @@ add_worker(PoolName, Pid) ->
 %% @doc Checkin a worker.
 -spec checkin_worker(PoolName::atom(), Pid::pid()) -> term().
 checkin_worker(PoolName, Pid) when is_pid(Pid) ->
+    %% try early to catch a dead worker
     case is_process_alive(Pid) of
         true ->
             gen_server:cast(PoolName, {checkin_worker, Pid});
         false ->
             ok
-    end;
-checkin_worker(_PoolName, _Pid) ->
-    ok.
+    end.
 
 %% @doc Checkout a worker.
 -spec checkout_worker(PoolName::atom()) -> Worker::pid() | undefined.
 checkout_worker(PoolName) ->
-    gen_server:call(PoolName, {checkout_worker}).
+    Worker = gen_server:call(PoolName, {checkout_worker}),
+    %% try to avoid a dead worker getting to an actual user
+    %% function as best as we can
+    case is_process_alive(Worker) of
+         true ->
+            Worker;
+         false ->
+            checkout_worker(PoolName)
+    end.
 
 
 %% ------------------------------------------------------------------
@@ -76,7 +83,7 @@ handle_cast({checkin_worker, Worker}, State) ->
         {empty, _Checkouts} ->
             Unused = queue:in(Worker, State#state.unused),
             {noreply, State#state{unused=Unused}}
-        end;
+    end;
 handle_cast({add_worker, Worker}, State) ->
     erlang:monitor(process, Worker),
     case queue:out(State#state.checkouts) of
