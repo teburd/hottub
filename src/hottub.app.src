@@ -7,6 +7,5 @@
                   kernel,
                   stdlib
                  ]},
-  {mod, { hottub_app, []}},
   {env, []}
  ]}.
