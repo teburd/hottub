@@ -34,7 +34,12 @@ add_worker(PoolName, Pid) ->
 %% @doc Checkin a worker.
 -spec checkin_worker(PoolName::atom(), Pid::pid()) -> term().
 checkin_worker(PoolName, Pid) when is_pid(Pid) ->
-    gen_server:cast(PoolName, {checkin_worker, Pid});
+    case is_process_alive(Pid) of
+        true ->
+            gen_server:cast(PoolName, {checkin_worker, Pid});
+        false ->
+            ok
+    end;
 checkin_worker(_PoolName, _Pid) ->
     ok.
 
