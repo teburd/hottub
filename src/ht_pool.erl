@@ -1,7 +1,21 @@
 %% @author Tom Burdick <thomas.burdick@gmail.com>
 %% @copyright 2011 Tom Burdick
-%% @doc Hot Tub Pool Manager. Manages an ETS table that contains the current list
-%% of workers. Monitors workers for crashes and removes them from the ETS table.
+%% @doc Hot Tub Pool Manager. 
+%% Keeps two simple queues. One of workers and another of pending checkouts
+%% if there are no available workers. On checkin or addition of a worker
+%% if pending checkouts are waiting the worker is immediately handed off
+%% with little cost it is otherwise added back in to the queue of unused
+%% workers.
+%%
+%% A best attempt is made to ensure a worker is alive when checked out though
+%% in some circumstances a process may be dead on arrival if the last request
+%% caused it to have a delayed termination. Such scenarios are easily
+%% possibly when gen_server:cast or something equivalent.
+%%
+%% checkin/checkout should not be used directly. Instead the simple,
+%% functional wrapper hottub:execute should be used or one of its
+%% additional halpers hottub:call or hottub:cast.
+%%
 %% @end
 
 -module(ht_pool).
@@ -34,7 +48,7 @@ add_worker(PoolName, Pid) ->
 %% @doc Checkin a worker.
 -spec checkin_worker(PoolName::atom(), Pid::pid()) -> term().
 checkin_worker(PoolName, Pid) when is_pid(Pid) ->
-    %% try early to catch a dead worker
+    %% try to avoid a dead worker getting checked in needlessly
     case is_process_alive(Pid) of
         true ->
             gen_server:cast(PoolName, {checkin_worker, Pid});
@@ -46,8 +60,7 @@ checkin_worker(PoolName, Pid) when is_pid(Pid) ->
 -spec checkout_worker(PoolName::atom()) -> Worker::pid() | undefined.
 checkout_worker(PoolName) ->
     Worker = gen_server:call(PoolName, {checkout_worker}),
-    %% try to avoid a dead worker getting to an actual user
-    %% function as best as we can
+    %% try to avoid a dead worker getting checked out causing headaches
     case is_process_alive(Worker) of
          true ->
             Worker;

@@ -1,7 +1,7 @@
 Hot Tub
 =======
 
-HotTub is a permanent erlang worker pool.
+HotTub is a very simple permanent erlang worker pool.
 
 Goals
 -----
@@ -27,6 +27,7 @@ still probably be better.
 
 There is a benchmark as part of the test suite which can be run to give you an
 idea of the overhead of hottubs worker pool management routines.
+
 
 Example Usage
 -------------
