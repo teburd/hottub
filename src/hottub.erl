@@ -13,17 +13,18 @@
 %% ----------------------------------------------------------------------------
 
 %% @doc Start a linked hottub worker pool supervisor.
--spec start_link(PoolName::atom(), Limit::pos_integer(), M::module(), F::function(), A::list()) -> {ok, pid()}.
+-spec start_link(atom(), pos_integer(), atom(), atom(), list(any())) ->
+    ignore | {error, any()} | {ok, pid()}.
 start_link(PoolName, Limit, Module, Function, Args) ->
     ht_sup:start_link(PoolName, Limit, Module, Function, Args).
 
 %% @doc Stop a hottub worker pool supervisor
--spec stop(PoolName::atom()) -> ok.
+-spec stop(atom()) -> ok.
 stop(PoolName) ->
     ht_sup:stop(PoolName).
 
 %% @doc Perform a gen_server:call with a worker process.
--spec call(PoolName::atom(), Args::any()) -> Result::any().
+-spec call(atom(), any()) -> any().
 call(PoolName, Args) ->
     execute(PoolName,
         fun(Worker) ->
@@ -31,7 +32,7 @@ call(PoolName, Args) ->
         end).
 
 %% @doc Perform a gen_server:call with a worker process.
--spec cast(PoolName::atom(), Args::any()) -> Result::any().
+-spec cast(atom(), any()) -> any().
 cast(PoolName, Args) ->
     execute(PoolName,
         fun(Worker) ->
@@ -39,7 +40,7 @@ cast(PoolName, Args) ->
         end).
 
 %% @doc Execute a function using a worker.
--spec execute(PoolName::atom(), Function::fun((Worker::pid()) -> Result::any())) -> Result::any().
+-spec execute(atom(), fun((pid()) -> any())) -> any().
 execute(PoolName, Function) ->
     Worker = ht_pool:checkout_worker(PoolName),
     try

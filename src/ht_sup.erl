@@ -18,22 +18,27 @@
 %% ----------------------------------------------------------------------------
 
 %% @doc Start linked hottub supervisor.
--spec start_link(PoolName::string(), Limit::pos_integer(), Module::module(),
-    Function::function(), Arguments::list()) -> {ok, Sup::pid()}.
-start_link(PoolName, Limit, Module, Function, Arguments) ->
+-spec start_link(atom(), pos_integer(), atom(), atom(), list(any())) -> 
+    ignore | {error, term()} | {ok, pid()}.
+start_link(PoolName, Limit, Module, Function, Arguments) when
+        is_atom(PoolName),
+        is_integer(Limit),
+        is_atom(Module),
+        is_atom(Function),
+        is_list(Arguments) ->
     supervisor:start_link({local, sup_name(PoolName)}, ?MODULE,
         [PoolName, Limit, Module, Function, Arguments]).
 
 %% @doc Stop a hottub supervisor.
--spec stop(PoolName::string()) -> ok.
+-spec stop(atom()) -> ok.
 stop(PoolName) ->
     SupName = sup_name(PoolName),
-    Pid = whereis(SupName),
-    unlink(Pid),
-    Ref = monitor(process, Pid),
-    IsPid = is_pid(Pid),
-    case IsPid of
-        true ->
+    case whereis(SupName) of
+        undefined ->
+            ok;
+        Pid ->
+            unlink(Pid),
+            Ref = monitor(process, Pid),
             exit(Pid, shutdown),
             receive
                 {'DOWN', Ref, process, Pid, shutdown} ->
@@ -42,9 +47,7 @@ stop(PoolName) ->
                 1000 ->
                     erlang:exit(Pid, kill),
                     ok
-            end;
-        false ->
-            ok
+            end
     end.
 
 %% ----------------------------------------------------------------------------

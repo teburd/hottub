@@ -11,8 +11,8 @@
 %% supervisor calls to start a process with another that does some additional
 %% work.
 %% @end
--spec start_worker(atom(), {module(), function(), list()})
-    -> {ok, Pid::pid()}.
+-spec start_worker(atom(), {atom(), atom(), list(any())})
+    -> {ok, pid()}.
 start_worker(PoolName, {Module, Function, Arguments}) ->
     {ok, Pid} = erlang:apply(Module, Function, Arguments),
     ht_pool:add_worker(PoolName, Pid),

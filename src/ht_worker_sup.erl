@@ -18,10 +18,11 @@
 %% ----------------------------------------------------------------------------
 
 %% @doc Start linked hot tub worker supervisor.
--spec start_link(PoolName::atom(), Limit::pos_integer(), Module::module(),
-    Function::function(), Arguments::list()) -> {ok, Sup::pid()}.
+-spec start_link(atom(), pos_integer(), atom(), atom(), list(any())) ->
+    {ok, pid()}.
 start_link(PoolName, Limit, Module, Function, Arguments) ->
-    supervisor:start_link({local, sup_name(PoolName)}, ?MODULE, [PoolName, Limit, Module, Function, Arguments]).
+    supervisor:start_link({local, sup_name(PoolName)}, ?MODULE,
+        [PoolName, Limit, Module, Function, Arguments]).
 
 
 %% ----------------------------------------------------------------------------
@@ -32,7 +33,8 @@ sup_name(PoolName) ->
     list_to_atom(atom_to_list(PoolName) ++ "_worker_sup").
 
 worker_name(PoolName, Id) ->
-    lists:flatten([atom_to_list(PoolName) | ["_worker_" | io_lib:format("~p", [Id])]]).
+    lists:flatten([atom_to_list(PoolName) | ["_worker_"
+        | io_lib:format("~p", [Id])]]).
 
 
 %% ----------------------------------------------------------------------------

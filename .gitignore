@@ -21,3 +21,4 @@ rel/corbel
 priv/machine.cfg
 logs
 log
+*.plt

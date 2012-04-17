@@ -26,7 +26,8 @@
 -export([start_link/1, add_worker/2, checkout_worker/1, checkin_worker/2]).
 
 %% gen_server callbacks
--export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
+    code_change/3]).
 
 -record(state, {poolname=undefined, unused=queue:new(), checkouts=queue:new()}).
 
@@ -36,17 +37,17 @@
 %% ----------------------------------------------------------------------------
 
 %% @doc Start a linked pool manager.
--spec start_link(PoolName::atom()) -> {ok, pid()}.
+-spec start_link(atom()) -> {ok, pid()}.
 start_link(PoolName) ->
     gen_server:start_link({local, PoolName}, ?MODULE, [PoolName], []).
 
 %% @doc Called by ht_worker after the worker process has started.
--spec add_worker(PoolName::atom(), Pid::pid()) -> term().
+-spec add_worker(atom(), pid()) -> term().
 add_worker(PoolName, Pid) ->
     gen_server:cast(PoolName, {add_worker, Pid}).
 
 %% @doc Checkin a worker.
--spec checkin_worker(PoolName::atom(), Pid::pid()) -> term().
+-spec checkin_worker(atom(), pid()) -> term().
 checkin_worker(PoolName, Pid) when is_pid(Pid) ->
     %% try to avoid a dead worker getting checked in needlessly
     case is_process_alive(Pid) of
@@ -57,7 +58,7 @@ checkin_worker(PoolName, Pid) when is_pid(Pid) ->
     end.
 
 %% @doc Checkout a worker.
--spec checkout_worker(PoolName::atom()) -> Worker::pid() | undefined.
+-spec checkout_worker(atom()) -> pid() | undefined.
 checkout_worker(PoolName) ->
     Worker = gen_server:call(PoolName, {checkout_worker}),
     %% try to avoid a dead worker getting checked out causing headaches
@@ -110,7 +111,8 @@ handle_cast({add_worker, Worker}, State) ->
 
 %% @private
 handle_info({'DOWN', _, _, Worker, _}, State) ->
-    Unused = queue:from_list(lists:delete(Worker, queue:to_list(State#state.unused))),
+    Unused = queue:from_list(lists:delete(Worker,
+        queue:to_list(State#state.unused))),
     {noreply, State#state{unused=Unused}}.
 
 %% @private
