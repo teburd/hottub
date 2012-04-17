@@ -67,6 +67,23 @@ pool_crash_test() ->
 pool_benchmark_test_() ->
     {timeout, 120, ?_assertEqual(ok, begin benchmark() end)}.
 
+pending_pool_tasks_test() ->
+    NWorkers = 2,
+    NOps = 5000,
+    io:format(user, "Creating pool of ~p workers. Running the test ~p times.\n", [NWorkers, NOps]),
+    hottub:start_link(items_test, NWorkers, test_worker, start_link, []),
+    lists:map(fun(_) -> 
+        %% sleep 10 milliseconds
+        hottub:execute(items_test, fun(Worker) -> 
+            test_worker:sleep(Worker, 1)
+        end)
+    end, lists:seq(0, NOps)),
+    timer:sleep(2500),
+    io:format(user, "\tTotal items queued in the pool: ~p\n", [ht_pool:pending_pool_tasks(items_test)]),
+    timer:sleep(2500),
+    io:format(user, "\tTotal items queued in the pool: ~p\n", [ht_pool:pending_pool_tasks(items_test)]),
+    ok.
+
 benchmark() ->
     NWorkers = 500,
     hottub:start_link(bench_pool, 100, test_worker, start_link, []),

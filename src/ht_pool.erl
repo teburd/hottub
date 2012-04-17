@@ -26,7 +26,7 @@
 -export([start_link/1, add_worker/2, checkout_worker/1, checkin_worker/2]).
 
 %% gen_server callbacks
--export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3, pending_pool_tasks/1]).
 
 -record(state, {poolname=undefined, unused=queue:new(), checkouts=queue:new()}).
 
@@ -68,6 +68,10 @@ checkout_worker(PoolName) ->
             checkout_worker(PoolName)
     end.
 
+%% @doc Returns the sum of message_queue_len for each worker.
+-spec pending_pool_tasks(PoolName::atom()) -> term().
+pending_pool_tasks(PoolName) ->
+    gen_server:call(PoolName, {pending_pool_tasks}).
 
 %% ------------------------------------------------------------------
 %% gen_server callbacks
@@ -78,6 +82,13 @@ init([PoolName]) ->
     {ok, #state{poolname=PoolName}}.
 
 %% @private
+handle_call({pending_pool_tasks}, _From, State) ->
+    Items = lists:sum(lists:map(fun(Pid) -> 
+        {_, ItemCount} = process_info(Pid, message_queue_len), 
+        ItemCount
+    end, queue:to_list(State#state.unused) ++ queue:to_list(State#state.checkouts))),
+    {reply, Items, State};
+
 handle_call({checkout_worker}, From, State) ->
     case queue:out(State#state.unused) of
         {{value, Worker}, Unused} ->

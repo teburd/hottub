@@ -7,7 +7,7 @@
 -behaviour(gen_server).
 
 %% api
--export([start_link/0, nothing/1, crash/1, increment/1, count/1, stop/1]).
+-export([start_link/0, nothing/1, crash/1, increment/1, count/1, stop/1, sleep/2]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -29,6 +29,11 @@ start_link() ->
 nothing(_) ->
     ok.
 
+%% @doc Sleep for a given amount of milliseconds.
+-spec sleep(Pid::pid(), Duration::integer()) -> any().
+sleep(Pid, Duration) ->
+    gen_server:cast(Pid, {sleep, Duration}).
+
 %% @doc Increment counter.
 -spec increment(Pid::pid()) -> any().
 increment(Pid) ->
@@ -49,7 +54,6 @@ crash(Pid) ->
 stop(Pid) ->
     gen_server:cast(Pid, {stop}).
 
-
 %% ------------------------------------------------------------------
 %% gen_server callbacks
 %% ------------------------------------------------------------------
@@ -68,6 +72,9 @@ handle_call(_Request, _From, State) ->
     {reply, ok, State}.
 
 %% @private
+handle_cast({sleep, Duration}, State) ->
+    timer:sleep(Duration),
+    {noreply, ok, State};
 handle_cast({crash}, State) ->
     {stop, crash, State};
 handle_cast({stop}, State) ->
