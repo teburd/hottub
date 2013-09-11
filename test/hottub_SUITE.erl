@@ -1,14 +1,46 @@
--module(hottub_tests).
--include_lib("eunit/include/eunit.hrl").
+%% Copyright (c) 2011-2013, Tom Burdick <thomas.burdick@gmail.com>
+%%
+%% Permission to use, copy, modify, and/or distribute this software for any
+%% purpose with or without fee is hereby granted, provided that the above
+%% copyright notice and this permission notice appear in all copies.
+%%
+%% THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+%% WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+%% MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+%% ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+%% WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+%% ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+%% OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+-module(hottub_SUITE).
+
+-include_lib("common_test/include/ct.hrl").
+
+%% ct.
+-export([all/0]).
+
+%% Tests.
+-export([start_stop/1]).
+-export([dead_worker/1]).
+-export([crash/1]).
+-export([benchmark/1]).
+
+all() ->
+    [
+        start_stop,
+        dead_worker,
+        crash,
+        benchmark
+    ].
 
 %% Basic Worker Pool Test.
-pool_start_stop_test() ->
+start_stop(_Config) ->
     {ok, Pid} = hottub:start_link(ss_pool, 1, test_worker, start_link, []),
     ok = hottub:stop(ss_pool),
-    ?assertEqual(false, is_process_alive(Pid)),
+    false = is_process_alive(Pid),
     ok.
 
-pool_dead_worker_test() ->
+dead_worker(_Config) ->
     hottub:start_link(dead_pool, 1, test_worker, start_link, []),
     Pid = self(),
     BlockFun = fun() ->
@@ -46,28 +78,24 @@ pool_dead_worker_test() ->
         ok ->
             ok;
         fail ->
-            ?assert(false)
+            throw(fail) 
     end.
 
-pool_crash_test() ->
+crash(_Config) ->
     hottub:start_link(test_pool, 1, test_worker, start_link, []),
     hottub:execute(test_pool,
         fun(Worker) ->
-            ?assert(is_pid(Worker)),
+            true = is_pid(Worker),
             test_worker:crash(Worker)
         end),
     hottub:execute(test_pool,
         fun(Worker) ->
-            ?assert(is_pid(Worker))
+            true = is_pid(Worker)
         end),
     hottub:stop(test_pool),
     ok.
 
-%% Benchmark Pool Checkout/Checkin Test.
-pool_benchmark_test_() ->
-    {timeout, 120, ?_assertEqual(ok, begin benchmark() end)}.
-
-benchmark() ->
+benchmark(_Config) ->
     NWorkers = 500,
     hottub:start_link(bench_pool, 100, test_worker, start_link, []),
     BenchFun = fun() ->
