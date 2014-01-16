@@ -5,7 +5,7 @@
 -module(hottub).
 
 %% api
--export([start_link/5, stop/1, execute/2, call/2, cast/2]).
+-export([start_link/5, stop/1, execute/2, call/2, call/3, cast/2]).
 
 
 %% ----------------------------------------------------------------------------
@@ -32,6 +32,15 @@ call(PoolName, Args) ->
         end).
 
 %% @doc Perform a gen_server:call with a worker process.
+-spec call(atom(), any(), timeout()) -> any().
+call(PoolName, Args, Timeout) ->
+    execute(PoolName,
+        fun(Worker) ->
+            gen_server:call(Worker, Args)
+        end,
+        Timeout).
+
+%% @doc Perform a gen_server:cast with a worker process.
 -spec cast(atom(), any()) -> any().
 cast(PoolName, Args) ->
     execute(PoolName,
