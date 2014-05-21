@@ -70,6 +70,7 @@ erl shell
 ``` erlang
 hottub:start_link(demo, 5, demo_worker, start_link, []).
 hottub:call(demo, {add, 5, 5}).
+hottub:call(demo, {add, 5, 5}, 1000). %% call with timeout
 hottub:cast(demo, {print, "what up from a pool"}).
 hottub:execute(demo, 
     fun(Worker) -> 
