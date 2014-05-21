@@ -53,7 +53,7 @@ add_worker(PoolName, Pid) ->
 %% @doc Checkin a worker.
 -spec checkin_worker(atom(), pid()) -> term().
 checkin_worker(PoolName, Pid) when is_pid(Pid) ->
-    %% try to avoid a dead worker getting checked in needlessly
+    %% only checkin live workers
     case is_process_alive(Pid) of
         true ->
             gen_server:cast(PoolName, {checkin_worker, Pid});
@@ -64,32 +64,19 @@ checkin_worker(PoolName, Pid) when is_pid(Pid) ->
 %% @doc Checkout a worker.
 -spec checkout_worker(atom()) -> pid() | undefined.
 checkout_worker(PoolName) ->
-    Worker = gen_server:call(PoolName, {checkout_worker}),
-    %% try to avoid a dead worker getting checked out causing headaches
-    case is_process_alive(Worker) of
-         true ->
-            Worker;
-         false ->
-            checkout_worker(PoolName)
-    end.
+    checkout_worker(PoolName, infinity).
 
 %% @doc Checkout a worker with a timeout
--spec checkout_worker(atom(), timeout()) -> pid() | timeout | undefined.
+-spec checkout_worker(atom(), timeout()) -> pid() | undefined.
 checkout_worker(PoolName, Timeout) ->
     Worker = gen_server:call(PoolName, {checkout_worker}, Timeout),
-    case Worker of
-        timeout ->
-            timeout;
-        _ -> 
-            %% try to avoid a dead worker getting checked out causing headaches
-            case is_process_alive(Worker) of
-                 true ->
-                    Worker;
-                 false ->
-                    checkout_worker(PoolName)
-            end
-    end.
-
+    %% only checkout live workers 
+    case is_process_alive(Worker) of
+        true ->
+            Worker;
+        false ->
+            checkout_worker(PoolName, Timeout)
+   end.
 
 %% ------------------------------------------------------------------
 %% gen_server callbacks
