@@ -23,7 +23,11 @@
 -behaviour(gen_server).
 
 %% api
--export([start_link/1, add_worker/2, checkout_worker/1, checkin_worker/2]).
+-export([start_link/1]).
+-export([add_worker/2]).
+-export([checkout_worker/1]).
+-export([checkout_worker/2]).
+-export([checkin_worker/2]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
@@ -67,6 +71,23 @@ checkout_worker(PoolName) ->
             Worker;
          false ->
             checkout_worker(PoolName)
+    end.
+
+%% @doc Checkout a worker with a timeout
+-spec checkout_worker(atom(), timeout()) -> pid() | timeout | undefined.
+checkout_worker(PoolName, Timeout) ->
+    Worker = gen_server:call(PoolName, {checkout_worker}, Timeout),
+    case Worker of
+        timeout ->
+            timeout;
+        _ -> 
+            %% try to avoid a dead worker getting checked out causing headaches
+            case is_process_alive(Worker) of
+                 true ->
+                    Worker;
+                 false ->
+                    checkout_worker(PoolName)
+            end
     end.
 
 

@@ -5,7 +5,7 @@
 -module(hottub).
 
 %% api
--export([start_link/5, stop/1, execute/2, call/2, call/3, cast/2]).
+-export([start_link/5, stop/1, execute/2, execute/3, call/2, call/3, cast/2]).
 
 
 %% ----------------------------------------------------------------------------
@@ -34,11 +34,10 @@ call(PoolName, Args) ->
 %% @doc Perform a gen_server:call with a worker process.
 -spec call(atom(), any(), timeout()) -> any().
 call(PoolName, Args, Timeout) ->
-    execute(PoolName,
+    execute(PoolName, Timeout,
         fun(Worker) ->
             gen_server:call(Worker, Args)
-        end,
-        Timeout).
+        end).
 
 %% @doc Perform a gen_server:cast with a worker process.
 -spec cast(atom(), any()) -> any().
@@ -48,10 +47,15 @@ cast(PoolName, Args) ->
             gen_server:cast(Worker, Args)
         end).
 
-%% @doc Execute a function using a worker.
+%% @doc Execute a function using a worker waiting forever for a worker.
 -spec execute(atom(), fun((pid()) -> any())) -> any().
 execute(PoolName, Function) ->
-    Worker = ht_pool:checkout_worker(PoolName),
+    execute(PoolName, infinity, Function).
+
+%% @doc Execute a function using a worker with a timeout for obtaining a worker
+-spec execute(atom(), timeout(), fun((pid()) -> any())) -> any().
+execute(PoolName, Timeout, Function) ->
+    Worker = ht_pool:checkout_worker(PoolName, Timeout),
     try
         Function(Worker)
     after

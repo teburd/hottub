@@ -22,6 +22,7 @@
 %% Tests.
 -export([start_stop/1]).
 -export([dead_worker/1]).
+-export([timeout/1]).
 -export([crash/1]).
 -export([benchmark/1]).
 
@@ -29,6 +30,7 @@ all() ->
     [
         start_stop,
         dead_worker,
+        timeout,
         crash,
         benchmark
     ].
@@ -80,6 +82,24 @@ dead_worker(_Config) ->
         fail ->
             throw(fail) 
     end.
+
+timeout(_Config) ->
+    hottub:start_link(test_pool, 1, test_worker, start_link, []),
+    hottub:execute(test_pool,
+        fun(Worker) ->
+            true = is_pid(Worker),
+            try
+                hottub:execute(test_pool, 100, fun(Worker0) ->
+                    false = is_pid(Worker0)
+                end)
+            catch
+                exit:{timeout, _} ->
+                    ok
+            end
+        end),
+    hottub:stop(test_pool),
+    ok.
+
 
 crash(_Config) ->
     hottub:start_link(test_pool, 1, test_worker, start_link, []),
