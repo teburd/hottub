@@ -28,12 +28,15 @@
 -export([checkout_worker/1]).
 -export([checkout_worker/2]).
 -export([checkin_worker/2]).
+-export([available_workers/1]).
+-export([pending_tasks/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
     code_change/3]).
 
--record(state, {poolname=undefined, unused=queue:new(), checkouts=queue:new()}).
+-record(state, {poolname=undefined, unused=queue:new(), checkouts=queue:new(),
+                available_workers=0, pending_tasks=0}).
 
 
 %% ----------------------------------------------------------------------------
@@ -78,6 +81,16 @@ checkout_worker(PoolName, Timeout) ->
             checkout_worker(PoolName, Timeout)
    end.
 
+%% @doc Available workers returns the number of idle and alive workers.
+-spec available_workers(atom()) -> int().
+available_workers(PoolName) ->
+    gen_server:call(PoolName, available_workers).
+
+%% @doc Pending tasks returns the number of queue tasks awaiting a worker.
+-spec pending_tasks(atom()) -> int().
+pending_tasks(PoolName) -> 
+    gen_server:call(PoolName, pending_tasks).
+
 %% ------------------------------------------------------------------
 %% gen_server callbacks
 %% ------------------------------------------------------------------
@@ -90,19 +103,25 @@ init([PoolName]) ->
 handle_call({checkout_worker}, From, State) ->
     case queue:out(State#state.unused) of
         {{value, Worker}, Unused} ->
+            AvailableWorkers = State#state.available_workers+1
             {reply, Worker, State#state{unused=Unused}};
         {empty, _Unused} ->
+            PendingTasks = State#state.pending_tasks+1
             Checkouts = queue:in(From, State#state.checkouts),
             {noreply, State#state{checkouts=Checkouts}}
-    end.
+    end;
+handle_call(available_workers, From, State) ->
+
 
 %% @private
 handle_cast({checkin_worker, Worker}, State) ->
     case queue:out(State#state.checkouts) of
         {{value, P}, Checkouts} ->
+            PendingTasks = State#state.pending_tasks-1
             gen_server:reply(P, Worker),
-            {noreply, State#state{checkouts=Checkouts}};
+            {noreply, State#state{checkouts=Checkouts, pending_tasks=PendingTasks}};
         {empty, _Checkouts} ->
+            AvailableWorkers = State#state.available_workers+1
             Unused = queue:in(Worker, State#state.unused),
             {noreply, State#state{unused=Unused}}
     end;
@@ -111,17 +130,23 @@ handle_cast({add_worker, Worker}, State) ->
     case queue:out(State#state.checkouts) of
         {{value, P}, Checkouts} ->
             gen_server:reply(P, Worker),
-            {noreply, State#state{checkouts=Checkouts}};
+            {noreply, State#state{checkouts=Checkouts, pending_tasks=State#state.pending_tasks-1}};
         {empty, _Checkouts} ->
             Unused = queue:in(Worker, State#state.unused),
-            {noreply, State#state{unused=Unused}}
+            {noreply, State#state{unused=Unused, available_workers=State#state.available_workers+1}}
     end.
 
 %% @private
 handle_info({'DOWN', _, _, Worker, _}, State) ->
     Unused = queue:from_list(lists:delete(Worker,
         queue:to_list(State#state.unused))),
-    {noreply, State#state{unused=Unused}}.
+    AvailableWorkers = case Unused of
+        State#state.unused ->
+            State#state.available_workers
+        _ ->
+            State#state.available_workers-1
+    end,
+    {noreply, State#state{unused=Unused, available_workers=AvailableWorkers}}.
 
 %% @private
 terminate(_Reason, _State) ->
